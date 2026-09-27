@@ -175,9 +175,20 @@ Drawings and photos never go into the Sheet. They are real files in Drive.
    logs a row in the `Pictures` tab.
 4. On success the attachment keeps its local `thumb` but drops `src`, and gains  
    `driveId` + `url`. A grey/amber dot on the thumbnail shows which state it is in.
+5. **After a successful upload the app pushes again.** The text went up *before*
+   the pictures, so the Sheet's picture count was written as zero. Without the
+   re-push the Sheet permanently claims a story has no pictures. That re-push
+   deliberately bypasses the backup switch and clears `suppressPush` first — the
+   child pressed Save, so it is an explicit action, not the app's own initiative.
+   A test asserts a `sync` *follows* the `uploadImage`.
 
 **`uploadPicture` must never call `setSharing`.** Pictures inherit the folder's  
 sharing. A script that widens sharing on a child's photo is a serious bug.
+
+**The folder LINK beats the bare folder id.** Shipping sets both. A grown-up
+edits the link, so if the two ever disagree the one they can see is the one they
+meant — `driveFolderId()` reads the link first and falls back to the id only when
+there is no link.
 
 ---
 
@@ -267,15 +278,20 @@ copies are in circulation.
 | Name                               | Where   | Meaning                                              |
 | ---------------------------------- | ------- | ---------------------------------------------------- |
 | `BUILD`                            | app     | Shown in the Grown-ups screen. Bump on every change. |
+| `DEFAULT_BACKEND`                  | app     | Shipped Sheet URL, token, Drive folder. All set.     |
 | `FAMILY_PW_HASHES`                 | app     | Accepted family passwords, as hashes.                |
 | `DEFAULT_PIN`                      | app     | Shipped grown-up PIN. `123456`.                      |
 | `PIC_MAX_EDGE`                     | app     | Longest edge a picture is shrunk to.                 |
 | `AUTOSAVE_MS` / `PUSH_DEBOUNCE_MS` | app     | 800 / 1600 ms.                                       |
 | `SECRET`                           | backend | Shared token. Must match the app's.                  |
+| `DRIVE_FOLDER_ID`                  | backend | Fallback picture folder (may be empty — see below).  |
+| `MAX_CELL` / `MAX_IMAGE_B64`       | backend | 49,000 chars / ~15 MB.                               |
 
-
-| `DRIVE_FOLDER_ID` | backend | Fallback picture folder. |  
-| `MAX_CELL` / `MAX_IMAGE_B64` | backend | 49,000 chars / ~15 MB. |
+**Why `DRIVE_FOLDER_ID` may be empty while pictures still work.** The app sends
+the folder with every `uploadImage` request, so the app-side folder is what
+actually matters. The script's constant is only a fallback. An empty one makes
+`ping.drive` report `ok:false` — a harmless warning, not a failure, and SETUP.md
+explains it to the user.
 
 ---
 

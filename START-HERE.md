@@ -27,8 +27,9 @@ walkthrough. About 15 minutes, once.
 | `google-apps-script.gs` | The Google backend. Pasted into Apps Script, never opened directly. |
 | `README.md` | How it works inside — for whoever maintains it. |
 | `SETUP.md` | The source text of `SETUP.html`. |
-| `_test.js` | 142 checks. `node _test.js` |
+| `_test.js` | 157 checks. `node _test.js` |
 | `_uitest.js` | Drives the real UI in Chrome. |
+| `_livetest.js` | End-to-end against the live Sheet and Drive. |
 | `_build-docs.js` | Rebuilds `SETUP.html` from `SETUP.md`. |
 
 ---
@@ -52,14 +53,29 @@ Still private, still yours:
 ## Verified
 
 ```
-142 checks pass            (node _test.js)
+157 checks pass            (node _test.js)
 full UI journey passes     (create Pikmin, write, draw, save, reload, approve)
+live end-to-end passes     (a drawing really landed in Google Drive)
 zero browser console errors
 ```
 
-Tested in real Chrome, not just a simulated environment — the app was driven
-through the whole child and grown-up flow, and the work was confirmed to survive
-a page reload.
+Tested in real Chrome against the **live** Sheet and Drive — not just a
+simulated environment. A story written in the app reached the Sheet, a drawing
+was filed as a real image file in the Drive folder, and a **second browser
+profile** (a separate device) saw both after logging in.
+
+---
+
+## Already connected
+
+This build ships with the Sheet URL, token and Drive folder already filled in,
+so it syncs the moment it opens. Nothing to paste.
+
+| Thing | Value |
+|---|---|
+| Sheet URL | `https://script.google.com/macros/s/AKfycbzws…/exec` |
+| Shared token | `ngkaixuenngyeeching` |
+| Drive folder | `1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0` |
 
 ---
 

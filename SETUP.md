@@ -107,6 +107,14 @@ Paste the folder id from step 1b between the quotes.
 4. Leave both checkboxes ticked.
 5. Click **Save**. Then click **Test**.
 
+> ### This copy is already connected
+> The three values above are **already filled in** in this build, so a fresh
+> copy syncs with nothing typed. You only need to touch them if you set up your
+> **own** Sheet (in which case replace all three with your own).
+>
+> To disconnect entirely, empty all three boxes and click Save. It stays
+> disconnected — the app will not re-fill a box you deliberately cleared.
+
 You want to see all of this:
 
 ```
@@ -129,6 +137,16 @@ Reading the Sheet…
 **If a line says the deployment is OLD, or that pictures will not upload** —
 you skipped publishing a New version. Go back to step 2.6 and use
 **Manage deployments → pencil → New version → Deploy**.
+
+> ### If `drive:` says there is a problem, but pictures still work
+> The app sends the folder with **every** request, so pictures upload using the
+> folder link from step 3 — and that is the value that matters.
+>
+> The `drive:` line in the test comes from the **script's own**
+> `DRIVE_FOLDER_ID`, which may still be empty. That is harmless: it is only a
+> fallback for when the app does not send a folder. To silence the warning,
+> paste the folder id into `DRIVE_FOLDER_ID` in the script and publish a
+> **New version**.
 
 ---
 
@@ -270,5 +288,35 @@ somehow got stuck.
 | `google-apps-script.gs` | The backend. Paste into Apps Script. |
 | `SETUP.html` | This guide, as a web page. |
 | `README.md` | How it works inside, for whoever maintains it. |
-| `_test.js` | 126 checks. For a developer. `node _test.js` |
+| `_test.js` | 157 checks. For a developer. `node _test.js` |
 | `_uitest.js` | Drives the real UI in a browser. For a developer. |
+| `_livetest.js` | End-to-end against the live Sheet and Drive. For a developer. |
+
+---
+
+## This build is already wired up
+
+So you know exactly what is baked in:
+
+| Thing | Value |
+|---|---|
+| Sheet URL | `https://script.google.com/macros/s/AKfycbzws…/exec` (full URL below) |
+| Shared token | `ngkaixuenngyeeching` |
+| Drive folder | `1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0` |
+| Family passwords | `letmewrite` / `pikminv3` — **change these** |
+| Grown-up PIN | `123456` — **change this** |
+
+The full Sheet URL, for copying:
+
+```
+https://script.google.com/macros/s/AKfycbzws40cS8CzCOzHB82oWURV89GaGYWdhg2LTYCEk03fUJbAi78TlhgkorUVEUL9OxzoSQ/exec
+```
+
+Verified against the live backend: a story written in the app reaches the Sheet,
+a drawing is filed as a real image in Drive, and a second device sees both after
+logging in.
+
+> **A reminder about the token.** It is in `index.html` in plain text. On a
+> public GitHub Pages site anyone can read it by viewing the page source. Keep
+> the **Sheet and the Drive folder private** — that, not the token, is what
+> keeps your family's writing and pictures away from strangers.

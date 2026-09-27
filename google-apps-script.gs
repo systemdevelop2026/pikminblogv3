@@ -237,10 +237,13 @@ function writeSnapshot(data) {
   return { kids:kidRows.length, posts:postRows.length };
 }
 
-/** How many pictures a story has — sent as a separate array, so count it. */
+/** How many pictures a story has.
+ *  A filed picture keeps its driveId; one still on a device keeps its data.
+ *  Count either, so the column is right whether or not Drive has the file. */
 function countPics(p) {
-  if (p && p.attachments && p.attachments.length) return p.attachments.length;
-  return Number(p && p.attachmentCount) || 0;
+  if (!p) return 0;
+  if (p.attachments && p.attachments.length) return p.attachments.length;
+  return Number(p.attachmentCount) || 0;
 }
 
 

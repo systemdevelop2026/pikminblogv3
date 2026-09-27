@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#3E5A2E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%233E5A2E'/%3E%3Cpath d='M16 9c0 0-2 4 0 7 2-3 0-7 0-7z' fill='%23C9D96B'/%3E%3Ccircle cx='16' cy='20' r='5' fill='%23F4EEDD'/%3E%3Ccircle cx='14.4' cy='19' r='1.1' fill='%23271F17'/%3E%3Ccircle cx='17.6' cy='19' r='1.1' fill='%23271F17'/%3E%3C/svg%3E">
 <title>Pikmin Blog v3</title>
 <style>
 /* ============================================================
@@ -289,10 +290,10 @@ const KEY_SESSION  = 'pikminv3.session';
    What actually protects the family is the SHARING SETTINGS on the Sheet
    itself — leave it private, or shared only with your own Google account. */
 const DEFAULT_BACKEND = {
-  url:   '',
-  token: 'change-me-please',
-  folderId: '',
-  folderUrl: ''
+  url:   'https://script.google.com/macros/s/AKfycbzws40cS8CzCOzHB82oWURV89GaGYWdhg2LTYCEk03fUJbAi78TlhgkorUVEUL9OxzoSQ/exec',
+  token: 'ngkaixuenngyeeching',
+  folderId: '1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0',
+  folderUrl: 'https://drive.google.com/drive/folders/1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0'
 };
 
 /* Pikmin colours a child can pick. Red/orange/yellow/blue/white/purple. */
@@ -525,9 +526,12 @@ function folderReady(){
 }
 function driveFolderId(){
   const c = cloudCfg();
-  if(c.folderId) return c.folderId;
+  /* The LINK wins over the bare id. Both are set by shipping, and a grown-up
+     edits the link — so if the two ever disagree, the one they can see is the
+     one they meant. A bare id is only used when there is no link at all. */
   const m = String(c.folderUrl || '').match(/\/folders\/([A-Za-z0-9_-]+)/);
-  return m ? m[1] : '';
+  if(m) return m[1];
+  return c.folderId || '';
 }
 function setCloudState(status, message){
   CLOUD_STATE = { status: status, message: message || '' };
@@ -1598,17 +1602,28 @@ async function queuePictureUpload(post){
   const pend = (post.attachments||[]).filter(a => !a.driveId && (a.src || a.thumb));
   if(!pend.length || !cloudReady()) return;
   const kid = kidById(post.kidId) || {};
+  let filed = 0;
   for(const att of pend){
     try{
       await uploadPicture(att, {
         kidId:post.kidId, kidName:kid.name, postId:post.id, title:post.title
       });
+      filed++;
     }catch(e){
       toast('A picture stayed on this device: ' + e.message, 'bad');
       break;
     }
   }
-  saveNow(); pushSoon();
+  saveNow();
+  /* The text went up BEFORE the pictures, so the Sheet's picture count was
+     written as zero. Now that files have landed in Drive, send the snapshot
+     again or the Sheet keeps saying a story has no pictures. This is an
+     explicit action (the child pressed Save), so it must not be at the mercy
+     of the backup switch or of a pull's suppression flag. */
+  if(filed){
+    suppressPush = false;
+    await pushToSheet().catch(() => {});
+  }
 }
 
 
@@ -1695,7 +1710,8 @@ if(typeof window !== 'undefined'){
     setSuppressed: v => { suppressPush = v; },
     setCloudState: (s,m) => setCloudState(s,m), getCloudState: () => CLOUD_STATE,
     runDoctor, ACTIONS, BUILD, STATUS, PIKMIN,
-    setSession: s => { SESSION = s; }, getSession: () => SESSION
+    setSession: s => { SESSION = s; }, getSession: () => SESSION,
+    testHooks: { queuePictureUpload, uploadPicture, shrinkImage }
   };
 }
 </script>

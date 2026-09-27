@@ -248,17 +248,32 @@ eq(r.changed, false, 'identical snapshots report no change');
 
 /* ===== 4. cloud readiness ============================================== */
 console.log('\n[4] cloud readiness');
-T.setSET(T.normalizeSettings(null));
-ok(!T.cloudReady(), 'the shipped build is NOT connected out of the box (no URL)');
-T.setSET(T.normalizeSettings({ cloud:{ url:'https://script.google.com/macros/s/ABC/exec', token:'t' } }));
-ok(T.cloudReady(), 'a proper script.google.com URL makes it ready');
+/* The shipped build now carries a real Sheet URL, token and Drive folder, so a
+   fresh copy connects with nothing typed. That is a deliberate choice — see
+   SETUP.md on why the token is not a secret. */
+const SHIPPED = T.normalizeSettings(null);
+T.setSET(SHIPPED);
+ok(T.cloudReady(), 'a fresh copy IS connected out of the box');
+ok(SHIPPED.cloud.url.indexOf('https://script.google.com/') === 0, 'the shipped URL is a real Apps Script endpoint');
+ok(SHIPPED.cloud.url.slice(-5) === '/exec', 'and it ends in /exec');
+ok(SHIPPED.cloud.token.length > 8, 'a shipped token is present');
+eq(T.driveFolderId(), '1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0', 'the shipped Drive folder id is set');
+ok(T.folderReady(), 'so pictures have somewhere to go without setup');
+
 T.setSET(T.normalizeSettings({ cloud:{ url:'https://evil.example.com/x', token:'t' } }));
 ok(!T.cloudReady(), 'a non-Google URL is refused');
 T.setSET(T.normalizeSettings({ cloud:{ url:'https://script.google.com/x', token:'' } }));
 ok(!T.cloudReady(), 'no token means not ready');
-eq(T.driveFolderId(), '', 'no folder configured means no folder id');
+
+/* a grown-up who deliberately clears the boxes must stay disconnected */
+const cleared = T.normalizeSettings({ cloud:{ url:'', token:'', folderId:'', folderUrl:'' } });
+eq(cleared.cloud.url, '', 'a deliberately emptied URL stays empty');
+eq(cleared.cloud.token, '', 'a deliberately emptied token stays empty');
+ok(!T.cloudReady(), 'so clearing the boxes really does disconnect');
+
+/* a folder can still be set by hand, overriding the shipped default */
 T.setSET(T.normalizeSettings({ cloud:{ folderUrl:'https://drive.google.com/drive/folders/ABC123_-x' } }));
-eq(T.driveFolderId(), 'ABC123_-x', 'a folder id is extracted from a Drive link');
+eq(T.driveFolderId(), 'ABC123_-x', 'a folder id is extracted from a pasted Drive link');
 T.setSET(T.normalizeSettings({ cloud:{ folderUrl:'', folderId:'DIRECTID99' } }));
 eq(T.driveFolderId(), 'DIRECTID99', 'a bare folder id is accepted');
 
@@ -361,7 +376,8 @@ eq(T.DB().posts.length, 1, 'and the story is on this device afterwards');
 jsonpReply = undefined;
 
 /* -- login sync with no Sheet does nothing, quietly --------------------- */
-T.setSET(T.normalizeSettings(null));
+/* the shipped build IS connected, so blank it to exercise this path */
+T.setSET(T.normalizeSettings({ cloud:{ url:'', token:'', folderId:'', folderUrl:'' } }));
 T.setPulledOnce(false);
 const lr2 = await T.syncOnLogin();
 ok(lr2.skipped, 'with no Sheet, login sync is a deliberate no-op');
@@ -599,14 +615,26 @@ ok(/New version/.test(gs), 'the backend header warns about New version');
 
 /* ===== 10. copy hygiene =============================================== */
 console.log('\n[10] hygiene');
-ok(!/password.*?489487/.test(HTML), 'no old PIN leaks into the new build');
-ok(HTML.indexOf('ngkaixuen') < 0, 'no old family name leaks into the new build');
-ok(HTML.indexOf('ngyeeching') < 0, 'no old family name leaks into the new build');
+/* The family name is fine to appear — the shipped token contains it. What must
+   NOT appear is any credential from the OLD app. */
+ok(HTML.indexOf('489487') < 0, 'the old Captain PIN is not carried over');
 ok(HTML.indexOf('AKfycbxVcvJKRi9baM4viFL65J0E8M9rhnpiJcOJvuSFWgllBcxsdiHZXNNHtbLq1xoTGeel') < 0,
    'the OLD Sheet URL is not carried over');
 ok(HTML.indexOf('1u5a2jzK5Jnl5r1QlniRHw5ZWzsv84sa8') < 0,
    'the OLD Drive folder id is not carried over');
-ok(gs.indexOf('ngkaixuen') < 0, 'the backend carries no old family name');
+ok(HTML.indexOf("token: 'ngkaixuen_ngyeeching'") < 0,
+   'the OLD underscore token is not carried over');
+ok(gs.indexOf("var SECRET = 'ngkaixuen_ngyeeching'") < 0,
+   'the backend does not carry the old SECRET');
+ok(gs.indexOf('1u5a2jzK5Jnl5r1QlniRHw5ZWzsv84sa8') < 0,
+   'the backend does not carry the old Drive folder id');
+ok(HTML.indexOf("hashPw('ngkaixuen')") < 0, 'the old family password is not among the gate hashes');
+
+/* the NEW values must be present and consistent on both sides */
+ok(HTML.indexOf('AKfycbzws40cS8CzCOzHB82oWURV89GaGYWdhg2LTYCEk03fUJbAi78TlhgkorUVEUL9OxzoSQ') > 0,
+   'the new Sheet URL is baked in');
+ok(HTML.indexOf('1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0') > 0, 'the new Drive folder id is baked in');
+ok(HTML.indexOf("token: 'ngkaixuenngyeeching'") > 0, 'the new token is baked in');
 
 /* ===== 11. the setup guide ============================================ */
 console.log('\n[11] setup guide');
@@ -637,7 +665,74 @@ if(fs.existsSync(readme)){
   ok(/suppressPush/.test(rm), 'and the suppression flag');
   ok(/THE RULE/.test(rm), 'and the switch-must-not-block-a-user-action rule');
   ok(/syncOnLogin/.test(rm), 'and the login sync');
+  ok(/sync\* \*follows\*|sync\* \*follows\* the/i.test(rm) || /FOLLOWS the upload/i.test(rm) || /sync\* \*follows\*/.test(rm) || rm.indexOf('re-push') >= 0,
+     'and the post-picture re-push');
+  /* a blank line inside a table turns the rows after it into plain text —
+     check for a row that follows a blank line which itself follows a row */
+  const mdLines = rm.split(/\r?\n/);
+  const orphans = [];
+  for(let i = 2; i < mdLines.length; i++){
+    if(!mdLines[i-1].trim() && /^\|/.test(mdLines[i].trim()) && /^\|/.test(mdLines[i-2].trim()))
+      orphans.push('line ' + (i+1));
+  }
+  eq(orphans, [], 'no table is broken by a blank line');
 }
+
+/* ---- the shipped credentials, stated in SETUP.md --------------------- */
+const setupMd = fs.readFileSync(path.join(__dirname,'SETUP.md'),'utf8');
+ok(setupMd.indexOf('AKfycbzws40cS8CzCOzHB82oWURV89GaGYWdhg2LTYCEk03fUJbAi78TlhgkorUVEUL9OxzoSQ') > 0,
+   'SETUP names the shipped Sheet URL');
+ok(setupMd.indexOf('1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0') > 0, 'SETUP names the shipped Drive folder');
+ok(setupMd.indexOf('ngkaixuenngyeeching') > 0, 'SETUP names the shipped token');
+ok(/Change them/.test(setupMd) || /change these/i.test(setupMd),
+   'and tells the reader to change the passwords');
+
+/* -- after pictures upload, the Sheet is told about them ---------------- */
+console.log('\n[5b] pictures reach the Sheet');
+
+/* A story whose picture has just been filed must trigger a fresh push, or the
+   Sheet keeps reporting a picture count of zero. Regression test. */
+T.setSET(freshCloud());
+T.setPulledOnce(true);
+T.setSuppressed(false);
+T.cancelPush();
+fetchReply = { ok:true, posts:1 };
+const picPost = { id:'pPic', kidId:'k1', title:'With a picture', body:'x',
+                  attachments:[{ id:'a1', src:'data:image/png;base64,AAAA',
+                                  thumb:'data:image/png;base64,AAAA' }],
+                  status:'draft', createdAt:1, updatedAt:1, approvedAt:null };
+T.setDB({ kids:[kid('k1','K')], posts:[picPost], deleted:[] });
+
+/* let the app think it filed the picture, then run the real handler */
+const picCalls = [];
+const realFetch = sandbox.fetch;
+sandbox.fetch = async (url, opts) => {
+  const body = JSON.parse(opts.body || '{}');
+  picCalls.push(body.action);
+  if(body.action === 'uploadImage') return { status:200, text: async () => JSON.stringify({ ok:true, fileId:'F1', url:'https://drive.google.com/file/F1' }) };
+  return { status:200, text: async () => JSON.stringify({ ok:true, posts:1 }) };
+};
+sandbox.Image = function(){ this.width=10; this.height=10;
+  Object.defineProperty(this,'src',{ set(){ if(this.onload) setTimeout(()=>this.onload(),0); } }); };
+
+/* Clear any push left pending by an earlier block, so the ONLY sync we can
+   observe here is the one this handler schedules. Without this the assertion
+   is satisfied by unrelated traffic and proves nothing. */
+T.cancelPush();
+picCalls.length = 0;
+
+await sandbox.__pb.testHooks.queuePictureUpload(picPost);
+sandbox.fetch = realFetch;
+
+const upAt      = picCalls.indexOf('uploadImage');
+const syncAfter = picCalls.slice(upAt + 1).indexOf('sync');
+
+ok(upAt >= 0, 'the picture was uploaded');
+ok(upAt >= 0 && syncAfter >= 0,
+   'and a sync FOLLOWS the upload, so the Sheet learns about the picture');
+eq(picCalls.filter(a => a === 'uploadImage').length, 1, 'the picture was sent exactly once');
+eq(picPost.attachments[0].driveId, 'F1', 'the attachment now carries its Drive id');
+eq(picPost.attachments[0].src, '', 'and the local image data was dropped');
 
 /* ===== summary ========================================================= */
 console.log('\n================  ' + pass + ' passed, ' + fail + ' failed  ================');

@@ -148,6 +148,15 @@ var DRIVE_FOLDER_ID = '';
 <li>Click <b>Save</b>. Then click <b>Test</b>.</li>
 </ul>
 
+<blockquote>
+<h3>This copy is already connected</h3>
+<p>The three values above are <b>already filled in</b> in this build, so a fresh</p>
+<p>copy syncs with nothing typed. You only need to touch them if you set up your</p>
+<p><b>own</b> Sheet (in which case replace all three with your own).</p>
+<p>To disconnect entirely, empty all three boxes and click Save. It stays</p>
+<p>disconnected — the app will not re-fill a box you deliberately cleared.</p>
+</blockquote>
+
 <p>You want to see all of this:</p>
 
 <pre>
@@ -168,6 +177,17 @@ Reading the Sheet…
 </pre>
 
 <p><b>If a line says the deployment is OLD, or that pictures will not upload</b> — you skipped publishing a New version. Go back to step 2.6 and use <b>Manage deployments → pencil → New version → Deploy</b>.</p>
+
+<blockquote>
+<h3>If <code>drive:</code> says there is a problem, but pictures still work</h3>
+<p>The app sends the folder with <b>every</b> request, so pictures upload using the</p>
+<p>folder link from step 3 — and that is the value that matters.</p>
+<p>The <code>drive:</code> line in the test comes from the <b>script's own</b></p>
+<p><code>DRIVE_FOLDER_ID</code>, which may still be empty. That is harmless: it is only a</p>
+<p>fallback for when the app does not send a folder. To silence the warning,</p>
+<p>paste the folder id into <code>DRIVE_FOLDER_ID</code> in the script and publish a</p>
+<p><b>New version</b>.</p>
+</blockquote>
 
 <hr>
 
@@ -314,7 +334,38 @@ const DEFAULT_PIN = '123456';
 <tr><td><code>google-apps-script.gs</code></td><td>The backend. Paste into Apps Script.</td></tr>
 <tr><td><code>SETUP.html</code></td><td>This guide, as a web page.</td></tr>
 <tr><td><code>README.md</code></td><td>How it works inside, for whoever maintains it.</td></tr>
-<tr><td><code>_test.js</code></td><td>126 checks. For a developer. <code>node _test.js</code></td></tr>
+<tr><td><code>_test.js</code></td><td>157 checks. For a developer. <code>node _test.js</code></td></tr>
 <tr><td><code>_uitest.js</code></td><td>Drives the real UI in a browser. For a developer.</td></tr>
+<tr><td><code>_livetest.js</code></td><td>End-to-end against the live Sheet and Drive. For a developer.</td></tr>
 </table>
+
+<hr>
+
+<h2>This build is already wired up</h2>
+
+<p>So you know exactly what is baked in:</p>
+
+<table>
+<tr><th>Thing</th><th>Value</th></tr>
+<tr><td>Sheet URL</td><td><code>https://script.google.com/macros/s/AKfycbzws…/exec</code> (full URL below)</td></tr>
+<tr><td>Shared token</td><td><code>ngkaixuenngyeeching</code></td></tr>
+<tr><td>Drive folder</td><td><code>1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0</code></td></tr>
+<tr><td>Family passwords</td><td><code>letmewrite</code> / <code>pikminv3</code> — <b>change these</b></td></tr>
+<tr><td>Grown-up PIN</td><td><code>123456</code> — <b>change this</b></td></tr>
+</table>
+
+<p>The full Sheet URL, for copying:</p>
+
+<pre>
+https://script.google.com/macros/s/AKfycbzws40cS8CzCOzHB82oWURV89GaGYWdhg2LTYCEk03fUJbAi78TlhgkorUVEUL9OxzoSQ/exec
+</pre>
+
+<p>Verified against the live backend: a story written in the app reaches the Sheet, a drawing is filed as a real image in Drive, and a second device sees both after logging in.</p>
+
+<blockquote>
+<p><b>A reminder about the token.</b> It is in <code>index.html</code> in plain text. On a</p>
+<p>public GitHub Pages site anyone can read it by viewing the page source. Keep</p>
+<p>the <b>Sheet and the Drive folder private</b> — that, not the token, is what</p>
+<p>keeps your family's writing and pictures away from strangers.</p>
+</blockquote>
 </main></body></html>
