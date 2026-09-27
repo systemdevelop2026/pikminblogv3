@@ -129,16 +129,17 @@ Four layers. Each one has a single job, and the boundaries are deliberate.
    ACTIONS           the ONLY code that changes state, wired by [data-act]
    ────────
    Cloud             the ONLY code that talks to Google
-   ────────
-   Store             the ONLY code that touches localStorage
 ```
 
-### `Store` — the storage door
+### No local storage
 
-`Store.readDB/writeDB/readSettings/writeSettings/readSession/wipeDevice`.  
-**Nothing else may call `localStorage`.** If you find yourself reaching for it  
-elsewhere, you are about to create the bug where a settings screen and a story  
-editor disagree about what is saved.
+**Store is removed.** The device holds nothing between reloads — not stories,
+not kids, not settings, not session state. The Google Sheet is the sole source
+of truth. Every reload fetches fresh data from the cloud.
+
+This is a deliberate privacy choice: a child using a shared or school device
+leaves no trace when they close the page. The trade-off is that a reload starts
+from scratch — the password must be re-entered, and the Sheet must be reachable.
 
 ### `DB` and `SET` — the whole world
 
@@ -350,7 +351,7 @@ tab, and reports no `lastBackup`. `runDoctor()` uses exactly this.
 ## Testing
 
 ```bash
-node _test.js        # 222 assertions, no dependencies
+node _test.js        # 214 assertions, no dependencies
 ```
 
 Block `[0]` of the suite is the login wall: it signs in first, so every later
@@ -411,7 +412,7 @@ copies are in circulation.
 | `FAMILY_PW_HASHES`                 | app     | Accepted family passwords, as hashes.                |
 | `DEFAULT_PIN`                      | app     | Shipped grown-up PIN. `489487`.                      |
 | `RETIRED_PINS`                     | app     | Superseded PINs, replaced by `DEFAULT_PIN` on sight. |
-| `KEY_UNLOCKED`                     | app     | Remembers "this device has signed in" across reloads. |
+| `KEY_SETTINGS` / `KEY_SESSION`     | app     | **Removed.** Nothing stored locally.                 |
 | `PIC_MAX_EDGE`                     | app     | Longest edge a picture is shrunk to.                 |
 | `AUTOSAVE_MS` / `PUSH_DEBOUNCE_MS` | app     | 800 / 1600 ms.                                       |
 | `SECRET`                           | backend | Shared token. Must match the app's.                  |
@@ -446,3 +447,6 @@ Stated plainly, because pretending otherwise costs whoever maintains this next.
   family use; would need attention at a much larger scale.
 - **Pictures upload one at a time, sequentially.** Ten drawings on one story  
   means ten round trips. Deliberate — it keeps failures isolated.
+- **Nothing stored locally.** Every reload starts from scratch — password,
+  Pikmin selection, everything. The Sheet must be reachable. This is the price
+  of leaving no trace on the device.

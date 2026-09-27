@@ -70,7 +70,7 @@ in the top bar. **🔒 Lock** returns to the Pikmin picker without signing out.
 This exact `index.html` was loaded in a real browser over `http://` (the way GitHub
 Pages serves it) and over `file://`:
 
-- build `v3.1.1`
+- build `v3.1.2`
 - connected: **true**
 - pulled the live stories from the Sheet
 - cloud state: `Up to date — 7 stories.`
@@ -78,10 +78,9 @@ Pages serves it) and over `file://`:
 - the status strip settles on its own in ~2–4s, no tapping needed
 - a fresh device lands on the sign-in card; a wrong password is refused; the
   right one signs in; signing out puts the wall back up
-- a device that still had the **old** PIN saved migrates to `489487`, and the
-  old PIN no longer opens the grown-ups screen
+- after reload, the sign-in wall reappears — nothing is stored locally
 
-Unit suite: **222 passed, 0 failed**. Real-browser journey: **all 23 steps pass**.
+Unit suite: **214 passed, 0 failed**. Real-browser journey: **all 21 steps pass**.
 
 ### Fixed in this build — the "stuck on Reading the Sheet…" problem
 

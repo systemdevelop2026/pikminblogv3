@@ -263,13 +263,14 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
 
    Shape of the thing
    ------------------
-     Store    - the ONLY code that touches localStorage
      Cloud    - the ONLY code that talks to the Apps Script backend
-     DB       - { kids:[], posts:[], deleted:[] }  the whole world
+     DB       - { kids:[], posts:[], deleted:[] }  the whole world (in memory)
      render() - the ONLY code that writes to the page
 
-   Storage rule: localStorage is the working copy. The Google Sheet is what
-   travels between devices. Nothing outside Store may touch localStorage.
+   Storage rule: NOTHING is stored locally. The Google Sheet is the sole source
+   of truth for all data. Every reload fetches fresh from the cloud. The device
+   holds no state between visits — not stories, not kids, not settings, not
+   session. This is a deliberate privacy choice.
    ============================================================================ */
 
 
@@ -277,12 +278,12 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.1';
+const BUILD = 'v3.1.2';
 
-const KEY_DB       = 'pikminv3.db';
-const KEY_SETTINGS = 'pikminv3.settings';
-const KEY_SESSION  = 'pikminv3.session';
-const KEY_UNLOCKED = 'pikminv3.unlocked';
+/* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
+   are the sole sources of truth. Nothing is stored on the device — not stories,
+   not kids, not settings, not session state. Every reload starts fresh and
+   fetches everything from the cloud. */
 
 /* Replace these two after you set up your own Sheet. See SETUP guide.
 
@@ -321,80 +322,12 @@ const PIC_JPEG_Q = 0.82;
 
 
 /* ==========================================================================
-   2. STORE — the only code allowed to touch localStorage
+   2. STORE — removed. No localStorage.
    ========================================================================== */
 
-const Store = {
-  readDB(){
-    try{
-      const raw = localStorage.getItem(KEY_DB);
-      if(!raw) return freshDB();
-      const d = JSON.parse(raw);
-      return {
-        kids:    Array.isArray(d.kids)    ? d.kids    : [],
-        posts:   Array.isArray(d.posts)   ? d.posts   : [],
-        deleted: Array.isArray(d.deleted) ? d.deleted : []
-      };
-    }catch(e){ return freshDB(); }
-  },
-  writeDB(db){
-    try{ localStorage.setItem(KEY_DB, JSON.stringify(db)); return true; }
-    catch(e){ return false; }
-  },
-  readSettings(){
-    try{
-      const raw = localStorage.getItem(KEY_SETTINGS);
-      const parsed = raw ? JSON.parse(raw) : null;
-      const s = normalizeSettings(parsed);
-      /* If normalization changed anything (a retired PIN, a missing field),
-         write it straight back, so the migration happens once and not on every
-         load. Failure here is harmless — the in-memory value is already right. */
-      try{ if(raw && JSON.stringify(parsed) !== JSON.stringify(s)) localStorage.setItem(KEY_SETTINGS, JSON.stringify(s)); }
-      catch(e){}
-      return s;
-    }catch(e){ return normalizeSettings(null); }
-  },
-  writeSettings(s){
-    try{ localStorage.setItem(KEY_SETTINGS, JSON.stringify(normalizeSettings(s))); return true; }
-    catch(e){ return false; }
-  },
-  readSession(){
-    try{
-      const raw = localStorage.getItem(KEY_SESSION);
-      return raw ? JSON.parse(raw) : null;
-    }catch(e){ return null; }
-  },
-  writeSession(s){
-    try{
-      if(s) localStorage.setItem(KEY_SESSION, JSON.stringify(s));
-      else  localStorage.removeItem(KEY_SESSION);
-      return true;
-    }catch(e){ return false; }
-  },
-  /* Remember that this device has been signed in, so a reload does not demand
-     the password again. It is a convenience flag, not a credential: someone who
-     can edit localStorage can set it, and that is fine — they could also just
-     read the app's source. See the note above FAMILY_PW_HASHES. */
-  readUnlocked(){
-    try{ return localStorage.getItem(KEY_UNLOCKED) === '1'; }catch(e){ return false; }
-  },
-  writeUnlocked(on){
-    try{
-      if(on) localStorage.setItem(KEY_UNLOCKED, '1');
-      else   localStorage.removeItem(KEY_UNLOCKED);
-      return true;
-    }catch(e){ return false; }
-  },
-  /* Used by the "start over" button. Wipes this device only — the Sheet is
-     untouched, so a sync can bring everything back. */
-  wipeDevice(){
-    try{
-      localStorage.removeItem(KEY_DB);
-      localStorage.removeItem(KEY_SESSION);
-      localStorage.removeItem(KEY_UNLOCKED);
-    }catch(e){}
-  }
-};
+/* All data lives in the Google Sheet and Drive. The device holds nothing
+   between reloads. Settings are rebuilt from hardcoded defaults every time.
+   Session and unlocked state are in-memory only. */
 
 function freshDB(){ return { kids:[], posts:[], deleted:[] }; }
 
@@ -461,12 +394,14 @@ function pwOk(entry){
    3. STATE
    ========================================================================== */
 
-let DB         = Store.readDB();
-let SET        = Store.readSettings();
-let SESSION    = Store.readSession();   /* {kidId} or {grownUp:true} */
+/* DB starts empty and is filled from the Sheet on every load. It lives only
+   in memory — never written to localStorage. */
+let DB         = freshDB();
+let SET        = normalizeSettings(null);   /* rebuilt from hardcoded defaults every reload */
+let SESSION    = null;                      /* {kidId} or {grownUp:true} — in-memory only */
 let VIEW       = { name:'profiles', postId:null, kidId:null };
-let DRAFT      = null;                  /* only while the editor is open */
-let BUSY       = false;                 /* a network call is in flight */
+let DRAFT      = null;                      /* only while the editor is open */
+let BUSY       = false;                     /* a network call is in flight */
 let CLOUD_STATE= { status:'idle', message:'' };
 
 /* The login wall. Until this is true the app renders nothing but the sign-in
@@ -474,7 +409,10 @@ let CLOUD_STATE= { status:'idle', message:'' };
    because two different questions are being asked:
      LOCKED  -> "may this person use the app at all?"      (the family password)
      SESSION -> "which child, or is this a grown-up?"      (chosen after login)
-   Clearing SESSION (Lock) must NOT throw the user back to the login card. */
+   Clearing SESSION (Lock) must NOT throw the user back to the login card.
+
+   With no localStorage, LOCKED is always true on reload — the password must be
+   entered every time. This is the price of storing nothing on the device. */
 let LOCKED     = true;
 let LOGIN_ERR  = '';
 
@@ -541,22 +479,15 @@ function statusBadge(st){
 
 
 /* ==========================================================================
-   5. LOCAL SAVE  (debounced — one write per burst of typing)
+   5. LOCAL SAVE  (removed — nothing stored locally)
    ========================================================================== */
 
-function isSuppressing(){ return suppressPush; }
+/* The Google Sheet is the sole source of truth. Every mutation pushes
+   immediately. There is no local copy, no debounce, no offline queue, no
+   localStorage. The device is a thin client; all state lives in the cloud.
+   The old scheduleSave/saveNow are replaced by pushToSheet() calls. */
 
-function scheduleSave(after){
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    Store.writeDB(DB);
-    if(after) after();
-  }, AUTOSAVE_MS);
-}
-function saveNow(){
-  clearTimeout(saveTimer);
-  return Store.writeDB(DB);
-}
+function isSuppressing(){ return suppressPush; }
 function cancelPush(){ clearTimeout(pushTimer); }
 function hasPendingPush(){ return !!pushTimer; }
 
@@ -783,13 +714,18 @@ async function pullFromSheet(opts){
   try{
     const r = await readSheetWithRetry(3);
     const remote = r.data || { kids:[], posts:[], deleted:[] };
-    const m = mergeSnapshot(DB, remote);
-    if(m.changed){ DB = m.db; saveNow(); }
+    /* The Sheet is the sole source of truth. Replace DB entirely — no merge,
+       no conflict resolution, no last-write-wins. The local copy is ephemeral. */
+    DB = {
+      kids:    Array.isArray(remote.kids)    ? remote.kids    : [],
+      posts:   Array.isArray(remote.posts)   ? remote.posts   : [],
+      deleted: Array.isArray(remote.deleted) ? remote.deleted : []
+    };
     pulledOnce = true;
     const n = (DB.posts||[]).length;
     setCloudState('ok', n ? ('Up to date — ' + n + ' stor' + (n===1?'y':'ies') + '.')
                           : 'Connected. No stories yet.');
-    return { ok:true, changed:m.changed, posts:(DB.posts||[]).length };
+    return { ok:true, changed:true, posts:n };
   }catch(e){
     /* Say something a person can act on, and say it in the strip that is
        already on screen — never leave the spinner up with no explanation. */
@@ -815,13 +751,13 @@ async function pushToSheet(){
     }, 30000);
     SET.cloud.lastSync  = Date.now();
     SET.cloud.lastError = null;
-    Store.writeSettings(SET);
+    /* Settings are not stored locally — no-op */
     const n = (DB.posts||[]).length;
     setCloudState('ok', 'Backed up — ' + n + ' stor' + (n===1?'y':'ies') + '.');
     return { ok:true, posts:n };
   }catch(e){
     SET.cloud.lastError = e.message;
-    Store.writeSettings(SET);
+    /* Settings are not stored locally — no-op */
     setCloudState('error', e.message);
     return { ok:false, error:e.message };
   }
@@ -853,22 +789,18 @@ function syncOnLogin(){
     return Promise.resolve({ ok:false, skipped:'no Sheet set up' });
   }
   loginSyncPromise = (async () => {
-    suppressPush = true;
-    let read = { ok:false }, write = { ok:false };
+    /* Pull only — the user has not made any changes yet, so there is nothing
+       to push. The initial load brings the Sheet's data into memory. */
+    let read = { ok:false };
     try{
       read = await pullFromSheet({ force:true });
     }catch(e){ read = { ok:false, error:e.message }; }
-    finally{ suppressPush = false; }          /* release BEFORE writing */
 
-    try{
-      write = await pushToSheet();
-    }catch(e){ write = { ok:false, error:e.message }; }
-
-    if(read.ok || write.ok){
+    if(read.ok){
       const n = (DB.posts||[]).length;
-      setCloudState('ok','Synced on this device — ' + n + ' stor' + (n===1?'y':'ies') + '.');
+      setCloudState('ok','Synced — ' + n + ' stor' + (n===1?'y':'ies') + '.');
     }
-    return { read:read, write:write };
+    return { read:read };
   })().catch(e => {
     setCloudState('error', e.message);
     return { ok:false, error:e.message };
@@ -1516,10 +1448,10 @@ const ACTIONS = {
   },
   openLog(){
     if(SESSION && SESSION.grownUp){ VIEW.name='log'; render(); return; }
-    openGate('pin', () => { SESSION = { grownUp:true }; Store.writeSession(SESSION);
+    openGate('pin', () => { SESSION = { grownUp:true };
       VIEW.name='log'; render(); });
   },
-  lock(){ SESSION = null; Store.writeSession(null); VIEW.name='profiles'; render(); toast('Locked'); },
+  lock(){ SESSION = null; VIEW.name='profiles'; render(); toast('Locked'); },
 
   /* The status strip invites a tap when a read fails, so the tap has to do
      something. force:true bypasses pulledOnce, which is the whole point. */
@@ -1544,7 +1476,7 @@ const ACTIONS = {
     }
     LOGIN_ERR = '';
     LOCKED = false;
-    Store.writeUnlocked(true);
+    /* Unlocked state is not stored locally — no-op */
     render();
     /* Now that someone is in, do the authoritative sync — this is the path that
        promises "sign in anywhere and your work is there". The boot pull runs
@@ -1555,8 +1487,8 @@ const ACTIONS = {
      wipe any stories — it is a lock, not a delete. */
   lockApp(){
     if(DRAFT){ try{ saveDraft(); }catch(e){} }
-    SESSION = null; Store.writeSession(null);
-    Store.writeUnlocked(false);
+    SESSION = null;
+    /* Session and unlocked state are not stored locally — no-op */
     LOCKED = true; LOGIN_ERR = '';
     VIEW = { name:'profiles', postId:null, kidId:null };
     loginSyncPromise = null;      /* a later login must sync afresh */
@@ -1589,7 +1521,7 @@ const ACTIONS = {
     if(!nm){ toast('Please give a name','bad'); return; }
     const kid = { id:uid(), name:nm, pikmin:VIEW.newPik || 'red', createdAt:Date.now() };
     DB.kids.push(kid);
-    saveNow(); pushSoon();
+    pushToSheet().catch(() => {});
     VIEW.name='profiles';
     render(); toast('Welcome, ' + nm + '!','ok');
   },
@@ -1600,7 +1532,7 @@ const ACTIONS = {
     postsOf(kid.id).forEach(p => { DB.deleted.push(p.id); });
     DB.posts = DB.posts.filter(p => p.kidId !== kid.id);
     DB.kids  = DB.kids.filter(k => k.id !== kid.id);
-    saveNow(); pushSoon();
+    pushToSheet().catch(() => {});
     VIEW.name='log'; render(); toast('Removed ' + kid.name);
   },
 
@@ -1614,7 +1546,6 @@ const ACTIONS = {
       createdAt:Date.now(), updatedAt:Date.now(), approvedAt: SET.requireApproval ? null : Date.now()
     };
     DB.posts.push(p);
-    saveNow();
     openEditor(p.id);
   },
   fmt(d){
@@ -1682,11 +1613,16 @@ const ACTIONS = {
     });
     if(SET.requireApproval && p.status === 'published') p.status = 'pending';
     if(!SET.requireApproval && p.status !== 'published'){ p.status='published'; p.approvedAt = p.approvedAt || Date.now(); }
-    saveNow();
-    queuePictureUpload(p);
-    pushSoon();
-    toast('Saved','ok');
+    /* Pictures and text push in the background. The editor closes immediately
+       so the child sees their work right away. */
+    queuePictureUpload(p).catch(() => {});
     VIEW.kidId = p.kidId; VIEW.name='kid'; DRAFT=null; render();
+    toast('Saving…','ok');
+    pushToSheet().then(() => {
+      toast('Saved','ok');
+    }).catch(e => {
+      toast(e.message || 'Could not save to the Sheet', 'bad');
+    });
   },
   readPost(){
     if(!DRAFT) return;
@@ -1694,7 +1630,7 @@ const ACTIONS = {
     const p = DB.posts.find(x => x.id === DRAFT.id);
     if(!p) return;
     Object.assign(p, { title:DRAFT.title, body:DRAFT.body, attachments:DRAFT.attachments, updatedAt:Date.now() });
-    saveNow();
+    pushToSheet().catch(() => {});
     VIEW.fromKid = p.kidId; VIEW.name='read'; VIEW.postId=p.id; DRAFT=null; render();
   },
   editPost(d){ openEditor(d.id); },
@@ -1704,16 +1640,20 @@ const ACTIONS = {
     DB.posts = DB.posts.filter(p => p.id !== DRAFT.id);
     DB.deleted.push(DRAFT.id);
     const kidId = DRAFT.kidId;
-    saveNow(); pushSoon();
     DRAFT=null; VIEW.kidId=kidId; VIEW.name='kid'; render(); toast('Deleted');
+    pushToSheet().catch(e => {
+      toast(e.message || 'Could not delete from the Sheet', 'bad');
+    });
   },
   approve(d){
     const p = DB.posts.find(x => x.id === d.id);
     if(!p) return;
     p.status = 'published';
     p.approvedAt = Date.now();
-    saveNow(); pushSoon();
     render(); toast('Approved — it has bloomed!','ok');
+    pushToSheet().catch(e => {
+      toast(e.message || 'Could not approve on the Sheet', 'bad');
+    });
   },
 
   /* ---- settings ---- */
@@ -1722,7 +1662,7 @@ const ACTIONS = {
     const w = Number(($('#sWords')||{}).value);
     if(w >= 50 && w <= 5000) SET.wordLimit = w;
     SET.grownUpName = (($('#sName')||{}).value || 'Grown-up').trim() || 'Grown-up';
-    Store.writeSettings(SET);
+    /* Settings are not stored locally — no-op */
     render(); toast('Settings saved','ok');
   },
   saveCloud(){
@@ -1736,7 +1676,7 @@ const ACTIONS = {
     SET.cloud.folderId  = m ? m[1] : (fol.match(/^[A-Za-z0-9_-]{20,}$/) ? fol : '');
     SET.cloud.autoPush  = !!($('#cAuto')||{}).checked;
     SET.cloud.pullOnOpen= !!($('#cOpen')||{}).checked;
-    Store.writeSettings(SET);
+    /* Settings are not stored locally — no-op */
     pulledOnce = false;               /* let a new URL be read next time */
     render(); toast('Saved','ok');
     if(cloudReady()) syncOnLogin();
@@ -1758,8 +1698,8 @@ const ACTIONS = {
   },
   wipe(){
     if(!confirm('Clear everything on THIS device?\n\nThe Google Sheet is not touched, so ' +
-      'logging in again can bring it back.')) return;
-    Store.wipeDevice();
+      'signing in again can bring it back.')) return;
+    /* Device wipe is a no-op — nothing is stored locally */
     DB = freshDB(); SESSION = null;
     pulledOnce = false;
     VIEW.name='profiles'; render(); toast('This device is clear');
@@ -1825,23 +1765,12 @@ function syncDraftFromDOM(){
   if(t) DRAFT.title = t.value;
   if(b) DRAFT.body  = b.value;
 }
-function saveDraft(){
-  syncDraftFromDOM();
-  if(!DRAFT) return;
-  const p = DB.posts.find(x => x.id === DRAFT.id);
-  if(!p) return;
-  Object.assign(p, { title:DRAFT.title, body:DRAFT.body,
-    attachments:DRAFT.attachments, updatedAt:Date.now() });
-  saveNow();
-}
+/* Drafts live only in memory until the child presses Save. There is no local
+   storage, so there is no autosave — the Sheet is the only place stories exist. */
 function onDraftChanged(){
   syncDraftFromDOM();
   const hint = $('#saveHint');
-  if(hint) hint.textContent = 'saving…';
-  scheduleSave(() => {
-    saveDraft();
-    if($('#saveHint')) $('#saveHint').textContent = 'saved ' + new Date().toLocaleTimeString();
-  });
+  if(hint) hint.textContent = 'not saved yet — press Save when done';
 }
 function renderEditorPics(){
   if(!DRAFT) return;
@@ -1871,16 +1800,13 @@ async function queuePictureUpload(post){
       });
       filed++;
     }catch(e){
-      toast('A picture stayed on this device: ' + e.message, 'bad');
+      toast('A picture could not be filed: ' + e.message, 'bad');
       break;
     }
   }
-  saveNow();
   /* The text went up BEFORE the pictures, so the Sheet's picture count was
      written as zero. Now that files have landed in Drive, send the snapshot
-     again or the Sheet keeps saying a story has no pictures. This is an
-     explicit action (the child pressed Save), so it must not be at the mercy
-     of the backup switch or of a pull's suppression flag. */
+     again or the Sheet keeps saying a story has no pictures. */
   if(filed){
     suppressPush = false;
     await pushToSheet().catch(() => {});
@@ -1948,22 +1874,15 @@ document.addEventListener('visibilitychange', () => {
    ========================================================================== */
 
 function boot(){
-  /* A warm start: if the Sheet is reachable and check-on-open is on, read it
-     behind the gate so the first paint already has the family's work. This is
-     an optimisation, not the guarantee — the guarantee is syncOnLogin.
-
-     The status strip is repainted by setCloudState itself, so this needs no
-     .then() to look alive — but the .catch() stays so a failure can never
-     become an unhandled rejection. */
-  if(cloudReady() && cloudCfg().pullOnOpen){
-    pullFromSheet({ force:false }).catch(() => {});
-  }
-  const s = Store.readSession();
-  if(s && (s.kidId || s.grownUp)) SESSION = s; else SESSION = null;
-  /* The wall goes up unless this device has been signed in before. Both must
-     still hold: a stale unlock flag with no session just means "show the
-     picker", not "show the password". */
-  LOCKED = !Store.readUnlocked();
+  /* The Google Sheet is the sole source of truth, but we do NOT pull on every
+     boot — that would race with user actions and silently discard work. Instead:
+     - syncOnLogin() pulls when the user explicitly signs in
+     - the user can manually refresh via Grown-ups → Check this device
+     - background sync only happens when the user is not actively editing */
+  /* With no localStorage, every reload starts fresh. SESSION is null and
+     LOCKED is true until the family password is entered. */
+  SESSION = null;
+  LOCKED = true;
   LOGIN_ERR = '';
   render();
 }
@@ -1976,15 +1895,15 @@ boot();
 setTimeout(() => {
   if(CLOUD_STATE.status === 'reading' || CLOUD_STATE.status === 'sending'){
     setCloudState('error', 'The Sheet is taking a long time to answer. '
-      + 'Your stories are safe on this device — tap to try again.');
+      + 'Please check your connection and tap to try again.');
   }
 }, 75000);
 
 /* ---- exposed for tests only -------------------------------------------- */
 if(typeof window !== 'undefined'){
   window.__pb = {
-    Store, DB: () => DB, SET: () => SET,
-    render, mergeSnapshot, normalizeSettings, freshDB,
+    DB: () => DB, SET: () => SET,
+    render, normalizeSettings, freshDB,
     pwOk, hashPw, wordCount, uid,
     pullFromSheet, pushToSheet, syncOnLogin,
     cloudReady, cloudCfg, driveFolderId, folderReady,
