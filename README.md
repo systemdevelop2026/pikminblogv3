@@ -97,6 +97,31 @@ a stylistic choice — a plain `fetch` read **does not work**.
 `pullFromSheet({force:false})` honours it. The boot call is unforced; the login  
 call is forced.
 
+#### Cold starts, retries, and the status strip
+
+An Apps Script deployment nobody has touched for a while is **slow to wake**.
+Google holds the request in its queue before the script runs at all — measured
+at ~2.7s on a warm-ish deployment, and a genuinely cold one can exceed 30s.
+Treating that as a hard failure is what produced the "stuck on *Reading the
+Sheet…*" bug.
+
+Three rules now apply:
+
+1. **`readSheetWithRetry()`** — up to 3 attempts with a widening gap
+   (1.2s, 2.4s). Only *transient* faults are retried; a refusal from the script
+   (bad token) is never retried, because it can never fix itself.
+2. **The strip repaints itself.** `setCloudState()` calls `repaint()` whenever
+   the status actually changes, so no user action is needed to clear a stale
+   message. `render()` sets a `rendering` guard so a repaint cannot recurse into
+   itself, and `repaint()` coalesces bursts through `requestAnimationFrame`.
+3. **Nothing spins forever.** A 75s watchdog converts any still-running read
+   into a plain-language error, and failed reads make the strip tappable
+   (`data-act="retryRead"`) so "try again" is a real instruction.
+
+The spinner is pure CSS, injected once — no image, no request.
+
+
+
 ### Writing — `pushToSheet()`
 
 Uses `fetch` with `Content-Type: text/plain`.

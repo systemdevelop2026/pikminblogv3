@@ -534,7 +534,24 @@ function driveFolderId(){
   return c.folderId || '';
 }
 function setCloudState(status, message){
+  const changed = (CLOUD_STATE.status !== status) || (CLOUD_STATE.message !== (message || ''));
   CLOUD_STATE = { status: status, message: message || '' };
+  /* The status strip lives in the DOM, so a state change with no repaint shows
+     the OLD message forever — that is what left "Reading the Sheet…" on screen
+     after the read had already finished. Repaint whenever it actually changes,
+     but never re-enter render() from inside a render pass. */
+  if(changed && !rendering) repaint();
+}
+
+let rendering = false;      /* guard: render() must not recurse into itself */
+let repaintQueued = false;  /* coalesce bursts of state changes into one frame  */
+function repaint(){
+  if(typeof window === 'undefined') return;
+  if(repaintQueued) return;
+  repaintQueued = true;
+  const run = () => { repaintQueued = false; try{ render(); }catch(e){} };
+  if(typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(run);
+  else setTimeout(run, 0);
 }
 
 /* ---- JSONP read ----------------------------------------------------------
@@ -563,8 +580,10 @@ function jsonp(action, extra, timeoutMs){
     const timer = setTimeout(() => {
       if(done) return;
       cleanup();
-      reject(new Error('The Sheet did not answer in time.'));
-    }, timeoutMs || 20000);
+      const err = new Error('The Sheet did not answer in time.');
+      err.transient = true;        /* a cold start, not a bad URL — safe to retry */
+      reject(err);
+    }, timeoutMs || 30000);
 
     window[name] = payload => {
       if(done) return;
@@ -577,8 +596,13 @@ function jsonp(action, extra, timeoutMs){
       if(done) return;
       clearTimeout(timer);
       cleanup();
-      reject(new Error('Could not reach the script. Check the URL, and that the '
-        + 'deployment is public and is on the latest version.'));
+      /* A <script> that fails to load tells us nothing about WHY. Most of the
+         time it is a cold start or a dropped connection, so do not accuse the
+         grown-up's URL of being wrong — say what we actually know. */
+      const err = new Error('The Sheet could not be reached just now. '
+        + 'It may simply be waking up.');
+      err.transient = true;        /* a dropped connection is worth one more try */
+      reject(err);
     };
     script.src = c.url + '?' + params.toString();
     document.body.appendChild(script);
@@ -671,6 +695,31 @@ function mergeSnapshot(mine, theirs){
   return { db: out, changed: changed };
 }
 
+/* ---- read with a retry across a cold start --------------------------------
+   An Apps Script deployment that nobody has touched for a while takes several
+   seconds just to wake up — Google holds the request in its queue before the
+   script runs at all (measured: ~2.7s on a warm-ish deployment, and it is not
+   unusual for a cold one to blow past 20s). Treating that as a hard failure
+   left the page saying "Reading the Sheet…" with nothing behind it.
+
+   So: retry transient failures with a widening gap, and report the wait
+   honestly rather than freezing on one word. */
+async function readSheetWithRetry(attempts){
+  const max = attempts || 3;
+  let last = null;
+  for(let i = 0; i < max; i++){
+    if(i > 0) setCloudState('reading', 'Still reading the Sheet… (' + (i + 1) + ' of ' + max + ')');
+    try{
+      return await jsonp('load', {}, 30000);
+    }catch(e){
+      last = e;
+      if(!e.transient) throw e;          /* a bad token will never fix itself */
+      if(i < max - 1) await new Promise(r => setTimeout(r, 1200 * (i + 1)));
+    }
+  }
+  throw last || new Error('The Sheet did not answer.');
+}
+
 /* ---- pull: read the Sheet and merge in ---------------------------------- */
 async function pullFromSheet(opts){
   const force = !!(opts && opts.force);
@@ -682,7 +731,7 @@ async function pullFromSheet(opts){
   suppressPush = true;
   setCloudState('reading','Reading the Sheet…');
   try{
-    const r = await jsonp('load', {}, 20000);
+    const r = await readSheetWithRetry(3);
     const remote = r.data || { kids:[], posts:[], deleted:[] };
     const m = mergeSnapshot(DB, remote);
     if(m.changed){ DB = m.db; saveNow(); }
@@ -692,7 +741,10 @@ async function pullFromSheet(opts){
                           : 'Connected. No stories yet.');
     return { ok:true, changed:m.changed, posts:(DB.posts||[]).length };
   }catch(e){
-    setCloudState('error', e.message);
+    /* Say something a person can act on, and say it in the strip that is
+       already on screen — never leave the spinner up with no explanation. */
+    const tail = e.transient ? ' Tap here to try again.' : '';
+    setCloudState('error', e.message + tail);
     return { ok:false, error:e.message };
   }finally{
     /* ALWAYS release, never restore a captured value. cloudPushSoon re-reads
@@ -871,14 +923,52 @@ async function uploadPicture(att, ctx){
 
 function render(){
   const app = $('#app');
-  if     (VIEW.name === 'profiles') app.innerHTML = viewProfiles();
-  else if(VIEW.name === 'kid')      app.innerHTML = viewKid();
-  else if(VIEW.name === 'editor')   app.innerHTML = viewEditor();
-  else if(VIEW.name === 'read')     app.innerHTML = viewRead();
-  else if(VIEW.name === 'log')      app.innerHTML = viewLog();
-  else if(VIEW.name === 'newKid')   app.innerHTML = viewNewKid();
-  else app.innerHTML = viewProfiles();
-  renderGate();
+  rendering = true;
+  let carried = null;
+  try{
+    /* The drawing pad is injected into an empty #drawBox at runtime, so a
+       re-render would silently throw away a half-finished picture. Carry it
+       across. This matters because setCloudState can now repaint at any
+       moment — a child must never lose a drawing to a background sync. */
+    if(VIEW.name === 'editor'){
+      const box = $('#drawBox');
+      if(box && box.innerHTML){
+        const cv = $('#cv');
+        carried = { html: box.innerHTML, png: cv ? cv.toDataURL('image/png') : null };
+      }
+    }
+
+    if     (VIEW.name === 'profiles') app.innerHTML = viewProfiles();
+    else if(VIEW.name === 'kid')      app.innerHTML = viewKid();
+    else if(VIEW.name === 'editor')   app.innerHTML = viewEditor();
+    else if(VIEW.name === 'read')     app.innerHTML = viewRead();
+    else if(VIEW.name === 'log')      app.innerHTML = viewLog();
+    else if(VIEW.name === 'newKid')   app.innerHTML = viewNewKid();
+    else app.innerHTML = viewProfiles();
+    renderGate();
+
+    if(carried){
+      const box = $('#drawBox');
+      if(box){
+        box.innerHTML = carried.html;
+        initCanvas();               /* rebind pointer events to the fresh canvas */
+        /* put the pixels back — initCanvas clears the canvas to white */
+        if(carried.png && CANVAS.ctx){
+          const img = new Image();
+          img.onload = () => {
+            try{
+              CANVAS.ctx.fillStyle = '#fff';
+              CANVAS.ctx.fillRect(0,0,CANVAS.cv.width,CANVAS.cv.height);
+              CANVAS.ctx.drawImage(img, 0, 0);
+            }catch(e){}
+          };
+          img.src = carried.png;
+        }
+      }
+    }
+  }finally{
+    rendering = false;
+  }
   try{ if(typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0,0); }catch(e){}
 }
 
@@ -949,18 +1039,47 @@ function viewProfiles(){
 function cloudStatusLine(){
   const dot = c => '<i style="width:9px;height:9px;border-radius:50%;background:' + c +
                    ';display:inline-block;margin-right:6px"></i>';
-  let color = 'var(--ink-3)', msg = '';
+  let color = 'var(--ink-3)', msg = '', tap = '';
   if(!cloudReady()){
     color = 'var(--warn)';
     msg = 'Stories are kept on this device. A grown-up can connect a Google Sheet to sync between devices.';
   }else{
     const st = CLOUD_STATE.status;
-    if(st === 'error')      { color = 'var(--bad)';  msg = 'Sync problem: ' + esc(CLOUD_STATE.message); }
+    if(st === 'error'){
+      color = 'var(--bad)';
+      msg = 'Sync problem: ' + esc(CLOUD_STATE.message);
+      tap = ' data-act="retryRead"';            /* make "try again" actually do it */
+    }
     else if(st === 'ok')    { color = 'var(--ok)';   msg = esc(CLOUD_STATE.message || 'Synced.'); }
-    else if(st === 'reading'||st === 'sending'){ color = 'var(--sprout)'; msg = esc(CLOUD_STATE.message); }
+    else if(st === 'reading'){ color = 'var(--sprout)'; msg = esc(CLOUD_STATE.message) + ' ' + spin(); }
+    else if(st === 'sending'){ color = 'var(--sprout)'; msg = esc(CLOUD_STATE.message) + ' ' + spin(); }
     else                    { msg = 'Connected to the Sheet. Log in to sync.'; }
   }
-  return '<div class="card small muted row" style="gap:0">' + dot(color) + '<span>' + msg + '</span></div>';
+  const style = 'gap:0' + (tap ? ';cursor:pointer' : '');
+  return '<div class="card small muted row" style="' + style + '"' + tap + '>' +
+         dot(color) + '<span>' + msg + '</span></div>';
+}
+
+/* A small inline spinner so "reading" visibly means reading. Pure CSS, added
+   once — no dependency, no image, no extra request. */
+let spinnerCSSAdded = false;
+function spin(){
+  if(typeof document === 'undefined') return '';
+  if(!spinnerCSSAdded){
+    spinnerCSSAdded = true;
+    const head = document.head
+      || (typeof document.getElementsByTagName === 'function'
+            && document.getElementsByTagName('head')[0]);
+    if(head && head.appendChild){
+      const s = document.createElement('style');
+      s.textContent = '@keyframes pbspin{to{transform:rotate(360deg)}}'
+        + '.pbspin{display:inline-block;width:10px;height:10px;margin-left:6px;'
+        + 'vertical-align:-1px;border:2px solid currentColor;border-right-color:transparent;'
+        + 'border-radius:50%;animation:pbspin .7s linear infinite}';
+      head.appendChild(s);
+    }
+  }
+  return '<i class="pbspin"></i>';
 }
 
 /* ---- 8b. one kid's stories ---------------------------------------------- */
@@ -1301,6 +1420,16 @@ const ACTIONS = {
       VIEW.name='log'; render(); });
   },
   lock(){ SESSION = null; Store.writeSession(null); VIEW.name='profiles'; render(); toast('Locked'); },
+
+  /* The status strip invites a tap when a read fails, so the tap has to do
+     something. force:true bypasses pulledOnce, which is the whole point. */
+  retryRead(){
+    if(!cloudReady()) return;
+    setCloudState('reading','Reading the Sheet…');
+    pullFromSheet({ force:true })
+      .then(r => { if(r && r.ok) toast('Read ' + ((DB.posts||[]).length) + ' stories','ok'); })
+      .catch(() => {});
+  },
 
   /* ---- gate ---- */
   gateOk(){
@@ -1683,7 +1812,11 @@ document.addEventListener('visibilitychange', () => {
 function boot(){
   /* A warm start: if the Sheet is reachable and check-on-open is on, read it
      behind the gate so the first paint already has the family's work. This is
-     an optimisation, not the guarantee — the guarantee is syncOnLogin. */
+     an optimisation, not the guarantee — the guarantee is syncOnLogin.
+
+     The status strip is repainted by setCloudState itself, so this needs no
+     .then() to look alive — but the .catch() stays so a failure can never
+     become an unhandled rejection. */
   if(cloudReady() && cloudCfg().pullOnOpen){
     pullFromSheet({ force:false }).catch(() => {});
   }
@@ -1693,6 +1826,16 @@ function boot(){
 }
 
 boot();
+
+/* A watchdog, so the strip can never be left spinning forever. If a read is
+   still in flight well past every internal timeout, the page says so in plain
+   words instead of pretending to work. */
+setTimeout(() => {
+  if(CLOUD_STATE.status === 'reading' || CLOUD_STATE.status === 'sending'){
+    setCloudState('error', 'The Sheet is taking a long time to answer. '
+      + 'Your stories are safe on this device — tap to try again.');
+  }
+}, 75000);
 
 /* ---- exposed for tests only -------------------------------------------- */
 if(typeof window !== 'undefined'){
@@ -1709,6 +1852,7 @@ if(typeof window !== 'undefined'){
     hasPendingPush, cancelPush, isSuppressing: () => suppressPush,
     setSuppressed: v => { suppressPush = v; },
     setCloudState: (s,m) => setCloudState(s,m), getCloudState: () => CLOUD_STATE,
+    repaint, readSheetWithRetry, cloudStatusLine,
     runDoctor, ACTIONS, BUILD, STATUS, PIKMIN,
     setSession: s => { SESSION = s; }, getSession: () => SESSION,
     testHooks: { queuePictureUpload, uploadPicture, shrinkImage }

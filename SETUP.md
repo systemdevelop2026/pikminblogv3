@@ -288,7 +288,7 @@ somehow got stuck.
 | `google-apps-script.gs` | The backend. Paste into Apps Script. |
 | `SETUP.html` | This guide, as a web page. |
 | `README.md` | How it works inside, for whoever maintains it. |
-| `_test.js` | 157 checks. For a developer. `node _test.js` |
+| `_test.js` | 183 checks. For a developer. `node _test.js` |
 | `_uitest.js` | Drives the real UI in a browser. For a developer. |
 | `_livetest.js` | End-to-end against the live Sheet and Drive. For a developer. |
 
