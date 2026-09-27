@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3E5A2E">
+<title>Pikmin Blog v3</title>
+<style>
+/* ============================================================
+   PIKMIN BLOG v3 — theme
+   Palette: leaf green, sprout yellow, soil brown, petal pink.
+   ============================================================ */
+:root{
+  --leaf:#3E5A2E; --leaf-2:#5C7F42; --leaf-3:#8FB56A;
+  --sprout:#F2C230; --sprout-2:#FFE08A;
+  --soil:#4A3527; --soil-2:#6B4E3A; --bark:#8A6A50;
+  --petal:#E88BA6; --petal-2:#F6C6D5;
+  --sky:#DCEBF5; --sky-2:#F1F7FB;
+  --bud:#E4572E;            /* the red Pikmin leaf */
+  --paper:#FFFDF7;
+  --ink:#2E2A24; --ink-2:#5A5148; --ink-3:#8B8078;
+  --line:#E2DACB;
+  --ok:#3F9B4F; --warn:#D98A14; --bad:#C0392B;
+  --r:16px; --r-sm:10px; --r-lg:26px;
+  --shadow:0 2px 0 rgba(74,53,39,.10), 0 8px 24px rgba(74,53,39,.10);
+  --shadow-sm:0 1px 0 rgba(74,53,39,.10), 0 3px 10px rgba(74,53,39,.08);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Nunito","Segoe UI",system-ui,-apple-system,sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(circle at 12% 8%, #EAF4DC 0, transparent 42%),
+    radial-gradient(circle at 88% 4%, #FDF0D2 0, transparent 38%),
+    linear-gradient(180deg,var(--sky-2) 0,#F7FAF0 55%,#EFF6E4 100%);
+  background-attachment:fixed;
+  min-height:100dvh; line-height:1.55; font-size:16px;
+}
+h1,h2,h3,h4{margin:0;line-height:1.25;letter-spacing:-.01em}
+h1{font-size:1.7rem} h2{font-size:1.28rem} h3{font-size:1.08rem}
+p{margin:.4rem 0}
+a{color:var(--leaf-2);text-decoration:none;border-bottom:1.5px solid var(--leaf-3)}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+
+/* ---------- layout ---------- */
+.wrap{max-width:940px;margin:0 auto;padding:0 18px 64px}
+.wrap-narrow{max-width:620px}
+.center{display:flex;align-items:center;justify-content:center}
+.row{display:flex;gap:10px;align-items:center}
+.row-wrap{flex-wrap:wrap}
+.spread{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.stack{display:flex;flex-direction:column;gap:14px}
+.grow{flex:1;min-width:0}
+.tc{text-align:center}
+.muted{color:var(--ink-3)}
+.small{font-size:.86rem}
+.tiny{font-size:.76rem}
+.hide{display:none!important}
+.mt{margin-top:18px} .mt-sm{margin-top:9px} .mb{margin-bottom:18px}
+
+/* ---------- cards ---------- */
+.card{
+  background:var(--paper);border:1.5px solid var(--line);
+  border-radius:var(--r);padding:18px;box-shadow:var(--shadow-sm);
+}
+.card-lift{box-shadow:var(--shadow)}
+.panel{background:#fff;border:1.5px solid var(--line);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow)}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 20px;border-radius:999px;font-weight:800;font-size:.95rem;
+  background:var(--leaf);color:#fff;border:2px solid transparent;
+  box-shadow:0 3px 0 #2C421F;transition:transform .07s,box-shadow .07s,background .15s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--leaf-2)}
+.btn:active{transform:translateY(3px);box-shadow:0 0 0 #2C421F}
+.btn-sun{background:var(--sprout);color:#4A3527;box-shadow:0 3px 0 #C99A16}
+.btn-sun:hover{background:var(--sprout-2)}
+.btn-sun:active{box-shadow:0 0 0 #C99A16}
+.btn-ghost{background:#fff;color:var(--leaf);border:2px solid var(--leaf-3);box-shadow:0 3px 0 #D8E6C4}
+.btn-ghost:hover{background:#F4FAEC}
+.btn-ghost:active{box-shadow:0 0 0 #D8E6C4}
+.btn-quiet{background:#F2EDE2;color:var(--ink-2);box-shadow:0 3px 0 #DFD6C4}
+.btn-quiet:hover{background:#EAE2D3}
+.btn-quiet:active{box-shadow:0 0 0 #DFD6C4}
+.btn-danger{background:var(--bad);box-shadow:0 3px 0 #8E2A1F}
+.btn-danger:hover{background:#D4483A}
+.btn-sm{padding:7px 14px;font-size:.86rem;box-shadow:0 2px 0 rgba(0,0,0,.18)}
+.btn-lg{padding:15px 30px;font-size:1.06rem}
+.btn-block{width:100%}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none!important}
+
+/* ---------- inputs ---------- */
+.input,textarea.input{
+  width:100%;padding:12px 14px;border:2px solid var(--line);border-radius:var(--r-sm);
+  background:#fff;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+.input:focus{border-color:var(--leaf-3);box-shadow:0 0 0 4px rgba(143,181,106,.18)}
+textarea.input{resize:vertical;min-height:120px;line-height:1.6;font-size:1.02rem}
+label.fld{display:block;margin:14px 0 0}
+label.fld span{display:block;font-weight:800;font-size:.83rem;color:var(--ink-2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;background:rgba(255,253,247,.92);
+  backdrop-filter:blur(10px);border-bottom:1.5px solid var(--line);
+}
+.topbar-in{max-width:940px;margin:0 auto;padding:9px 18px;display:flex;align-items:center;gap:10px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:900;color:var(--leaf)}
+.tab{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;
+  font-weight:800;font-size:.88rem;background:#F2EDE2;color:var(--ink-2);border:2px solid transparent;
+}
+.tab:hover{background:#E9E1D2}
+.tab.on{background:var(--leaf);color:#fff}
+.tab .lbl{display:inline}
+
+/* ---------- hero ---------- */
+.hero{
+  background:linear-gradient(160deg,#EAF6DA 0,#FFF7E2 55%,#FDEFF3 100%);
+  border:2px solid #DDEBC6;border-radius:var(--r-lg);
+  padding:30px 26px;margin:22px 0 24px;box-shadow:var(--shadow-sm);
+}
+
+/* ---------- pikmin avatars ---------- */
+.pik{
+  display:inline-block;border-radius:50% 50% 46% 46%;
+  border:2.5px solid rgba(0,0,0,.13);position:relative;flex:none;
+}
+.pik::after{ /* the little stem/leaf */
+  content:"";position:absolute;left:50%;top:-30%;width:22%;height:34%;
+  transform:translateX(-50%);border-radius:40% 40% 0 0;background:currentColor;
+}
+.pik-sm{width:28px;height:28px}
+.pik-md{width:46px;height:46px}
+.pik-lg{width:76px;height:76px;border-width:3px}
+
+/* ---------- kid cards ---------- */
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(168px,1fr))}
+.kidcard{
+  background:var(--paper);border:2px solid var(--line);border-radius:var(--r);
+  padding:18px 14px;text-align:center;box-shadow:var(--shadow-sm);
+  transition:transform .12s,box-shadow .12s,border-color .12s;position:relative;
+}
+.kidcard:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--leaf-3)}
+.kidcard .nm{font-weight:900;margin-top:9px;font-size:1.05rem}
+.kidcard .ct{color:var(--ink-3);font-size:.8rem;font-weight:700}
+.kidcard-dashed{
+  border:2.5px dashed var(--bark);background:rgba(255,255,255,.5);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px;
+}
+.kidcard-dashed:hover{border-color:var(--leaf-2);background:#F6FBEF}
+
+/* ---------- story list ---------- */
+.story{
+  display:flex;gap:13px;align-items:flex-start;padding:14px;border-radius:var(--r);
+  background:var(--paper);border:1.5px solid var(--line);box-shadow:var(--shadow-sm);
+  transition:transform .1s,border-color .15s;
+}
+.story:hover{transform:translateX(3px);border-color:var(--leaf-3)}
+.story .ttl{font-weight:800;font-size:1.04rem}
+.story .meta{color:var(--ink-3);font-size:.79rem;font-weight:700;margin-top:2px}
+.story .excerpt{color:var(--ink-2);font-size:.9rem;margin-top:5px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ---------- badges ---------- */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:999px;
+  font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em;
+}
+.b-sprout{background:#EAF3DC;color:#4B6B2C}
+.b-wait{background:#FDF0D2;color:#8A6412}
+.b-bloom{background:#E4F3E6;color:#2F7A3D}
+
+/* ---------- editor ---------- */
+.editor-wrap{background:var(--paper);border:2px solid var(--line);border-radius:var(--r-lg);padding:20px;box-shadow:var(--shadow)}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap;background:#F7F3EA;border:1.5px solid var(--line);
+  border-radius:var(--r-sm);padding:7px;margin-bottom:9px}
+.tool{width:38px;height:38px;border-radius:8px;background:#fff;border:1.5px solid var(--line);
+  display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.9rem}
+.tool:hover{background:#F2F8E8;border-color:var(--leaf-3)}
+.tool.on{background:var(--leaf);color:#fff;border-color:var(--leaf)}
+
+/* ---------- drawing ---------- */
+.canvas-box{background:#fff;border:2px solid var(--line);border-radius:var(--r);padding:9px;margin-top:12px}
+canvas.draw{width:100%;height:auto;display:block;border-radius:9px;touch-action:none;
+  background:#fff;cursor:crosshair;border:1.5px dashed var(--line)}
+.swatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.sw{width:32px;height:32px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 0 1.5px var(--line)}
+.sw.on{box-shadow:0 0 0 3px var(--leaf);transform:scale(1.1)}
+
+/* ---------- pics strip ---------- */
+.pics{display:flex;gap:9px;flex-wrap:wrap;margin-top:11px}
+.pic{position:relative;width:88px;height:88px;border-radius:12px;overflow:hidden;
+  border:2px solid var(--line);background:#F4F0E6}
+.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pic .x{position:absolute;top:3px;right:3px;width:22px;height:22px;border-radius:50%;
+  background:rgba(192,57,43,.94);color:#fff;font-size:13px;font-weight:900;
+  display:flex;align-items:center;justify-content:center}
+.pic .dot{position:absolute;bottom:3px;left:3px;width:11px;height:11px;border-radius:50%;
+  background:var(--ink-3);border:2px solid #fff}
+
+/* ---------- misc ---------- */
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;
+  background:#F2EDE2;font-size:.8rem;font-weight:800;color:var(--ink-2)}
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(80px);
+  background:var(--soil);color:#fff;padding:12px 22px;border-radius:999px;
+  font-weight:800;font-size:.9rem;z-index:200;box-shadow:var(--shadow);
+  opacity:0;transition:transform .25s,opacity .25s;pointer-events:none;max-width:88vw;text-align:center;
+}
+.toast.up{transform:translateX(-50%) translateY(0);opacity:1}
+.toast.bad{background:var(--bad)}
+.toast.ok{background:var(--ok)}
+.empty{text-align:center;padding:34px 18px;color:var(--ink-3)}
+.empty .big{font-size:2.6rem;margin-bottom:8px}
+hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line);font-size:.9rem}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--ink-3);font-weight:700}
+.kv .v{font-weight:800;text-align:right;word-break:break-word}
+.logbox{background:#2E2A24;color:#D8E8C8;border-radius:var(--r);padding:14px;
+  font-family:var(--mono);font-size:.79rem;max-height:300px;overflow:auto;white-space:pre-wrap;line-height:1.6}
+.gate{
+  position:fixed;inset:0;z-index:300;background:rgba(46,42,36,.55);
+  backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.gate .box{background:var(--paper);border-radius:var(--r-lg);padding:28px;max-width:390px;width:100%;box-shadow:var(--shadow)}
+.dot-line{display:flex;gap:9px;justify-content:center;margin:9px 0}
+.dot-line i{width:11px;height:11px;border-radius:50%;background:var(--line)}
+.dot-line i.on{background:var(--leaf)}
+.wordbar{height:8px;background:#EFE8DA;border-radius:99px;overflow:hidden;margin-top:7px}
+.wordbar span{display:block;height:100%;background:var(--leaf-3);transition:width .2s}
+.wordbar span.over{background:var(--warn)}
+@media(max-width:560px){
+  .wrap{padding:0 13px 54px}
+  h1{font-size:1.42rem}
+  .panel,.editor-wrap{padding:16px;border-radius:20px}
+  .hero{padding:22px 17px}
+  .tab .lbl{display:none}
+  .tab{padding:9px 12px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:11px}
+  .btn{padding:11px 16px}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+<div id="gate"></div>
+
+<script>
+"use strict";
+/* ============================================================================
+   PIKMIN BLOG v3
+   A writing app for children. Built fresh 2026-09-27.
+
+   Shape of the thing
+   ------------------
+     Store    - the ONLY code that touches localStorage
+     Cloud    - the ONLY code that talks to the Apps Script backend
+     DB       - { kids:[], posts:[], deleted:[] }  the whole world
+     render() - the ONLY code that writes to the page
+
+   Storage rule: localStorage is the working copy. The Google Sheet is what
+   travels between devices. Nothing outside Store may touch localStorage.
+   ============================================================================ */
+
+
+/* ==========================================================================
+   1. CONSTANTS
+   ========================================================================== */
+
+const BUILD = 'v3.0.0';
+
+const KEY_DB       = 'pikminv3.db';
+const KEY_SETTINGS = 'pikminv3.settings';
+const KEY_SESSION  = 'pikminv3.session';
+
+/* Replace these two after you set up your own Sheet. See SETUP guide.
+
+   HONEST NOTE: whatever you put here is visible to anyone who opens the page,
+   including on a public GitHub Pages site. It is a doorbell, not a lock.
+   What actually protects the family is the SHARING SETTINGS on the Sheet
+   itself — leave it private, or shared only with your own Google account. */
+const DEFAULT_BACKEND = {
+  url:   '',
+  token: 'change-me-please',
+  folderId: '',
+  folderUrl: ''
+};
+
+/* Pikmin colours a child can pick. Red/orange/yellow/blue/white/purple. */
+const PIKMIN = [
+  { id:'red',    name:'Red',    body:'#D64545', leaf:'#C0392B' },
+  { id:'yellow', name:'Yellow', body:'#F2C230', leaf:'#D6A21A' },
+  { id:'blue',   name:'Blue',   body:'#4A90D9', leaf:'#3A72AD' },
+  { id:'purple', name:'Purple', body:'#9B6BC4', leaf:'#7C519E' },
+  { id:'white',  name:'White',  body:'#F0EDE4', leaf:'#CFC9BA' },
+  { id:'rock',   name:'Rock',   body:'#8A8577', leaf:'#6E6A5E' }
+];
+
+const STATUS = {
+  draft:     { label:'Sprout',   cls:'b-sprout' },
+  pending:   { label:'Waiting',  cls:'b-wait'   },
+  published: { label:'Bloomed',  cls:'b-bloom'  }
+};
+
+const MAX_WORDS_DEFAULT = 400;
+const AUTOSAVE_MS = 800;
+const PUSH_DEBOUNCE_MS = 1600;
+const PIC_MAX_EDGE = 1400;        /* drawings/photos are shrunk to this */
+const PIC_JPEG_Q = 0.82;
+
+
+/* ==========================================================================
+   2. STORE — the only code allowed to touch localStorage
+   ========================================================================== */
+
+const Store = {
+  readDB(){
+    try{
+      const raw = localStorage.getItem(KEY_DB);
+      if(!raw) return freshDB();
+      const d = JSON.parse(raw);
+      return {
+        kids:    Array.isArray(d.kids)    ? d.kids    : [],
+        posts:   Array.isArray(d.posts)   ? d.posts   : [],
+        deleted: Array.isArray(d.deleted) ? d.deleted : []
+      };
+    }catch(e){ return freshDB(); }
+  },
+  writeDB(db){
+    try{ localStorage.setItem(KEY_DB, JSON.stringify(db)); return true; }
+    catch(e){ return false; }
+  },
+  readSettings(){
+    try{
+      const raw = localStorage.getItem(KEY_SETTINGS);
+      return normalizeSettings(raw ? JSON.parse(raw) : null);
+    }catch(e){ return normalizeSettings(null); }
+  },
+  writeSettings(s){
+    try{ localStorage.setItem(KEY_SETTINGS, JSON.stringify(normalizeSettings(s))); return true; }
+    catch(e){ return false; }
+  },
+  readSession(){
+    try{
+      const raw = localStorage.getItem(KEY_SESSION);
+      return raw ? JSON.parse(raw) : null;
+    }catch(e){ return null; }
+  },
+  writeSession(s){
+    try{
+      if(s) localStorage.setItem(KEY_SESSION, JSON.stringify(s));
+      else  localStorage.removeItem(KEY_SESSION);
+      return true;
+    }catch(e){ return false; }
+  },
+  /* Used by the "start over" button. Wipes this device only — the Sheet is
+     untouched, so a sync can bring everything back. */
+  wipeDevice(){
+    try{ localStorage.removeItem(KEY_DB); localStorage.removeItem(KEY_SESSION); }catch(e){}
+  }
+};
+
+function freshDB(){ return { kids:[], posts:[], deleted:[] }; }
+
+/* Every settings object is built here, so nothing downstream can meet a
+   half-formed one. Missing pieces are filled from defaults. */
+function normalizeSettings(s){
+  const d = DEFAULT_BACKEND;
+  const src = s && typeof s === 'object' ? s : {};
+  const cloud = src.cloud && typeof src.cloud === 'object' ? src.cloud : {};
+  return {
+    requireApproval: src.requireApproval !== false,
+    wordLimit:       Number(src.wordLimit) > 0 ? Number(src.wordLimit) : MAX_WORDS_DEFAULT,
+    grownUpName:     typeof src.grownUpName === 'string' && src.grownUpName.trim()
+                       ? src.grownUpName.trim() : 'Grown-up',
+    pin:             typeof src.pin === 'string' ? src.pin : DEFAULT_PIN,
+    cloud: {
+      url:       typeof cloud.url      === 'string' ? cloud.url      : d.url,
+      token:     typeof cloud.token    === 'string' ? cloud.token    : d.token,
+      folderId:  typeof cloud.folderId === 'string' ? cloud.folderId : d.folderId,
+      folderUrl: typeof cloud.folderUrl=== 'string' ? cloud.folderUrl: d.folderUrl,
+      autoPush:  cloud.autoPush  !== false,   /* back up every change  */
+      pullOnOpen:cloud.pullOnOpen!== false,   /* check on open         */
+      lastSync:  cloud.lastSync || null,
+      lastError: cloud.lastError || null
+    }
+  };
+}
+const DEFAULT_PIN = '123456';
+
+/* The family password is kept as a hash, not the words themselves. */
+function hashPw(s){
+  let h = 5381;
+  for(const ch of ('pbv3::' + String(s))) h = (((h << 5) + h) + ch.charCodeAt(0)) >>> 0;
+  return h.toString(36);
+}
+const FAMILY_PW_HASHES = [
+  hashPw('letmewrite'),   /* <-- CHANGE THESE. See SETUP guide. */
+  hashPw('pikminv3')
+];
+
+function pwOk(entry){
+  const t = String(entry || '').trim().toLowerCase();
+  if(!t) return false;
+  return FAMILY_PW_HASHES.indexOf(hashPw(t)) >= 0;
+}
+
+
+/* ==========================================================================
+   3. STATE
+   ========================================================================== */
+
+let DB         = Store.readDB();
+let SET        = Store.readSettings();
+let SESSION    = Store.readSession();   /* {kidId} or {grownUp:true} */
+let VIEW       = { name:'profiles', postId:null, kidId:null };
+let DRAFT      = null;                  /* only while the editor is open */
+let BUSY       = false;                 /* a network call is in flight */
+let CLOUD_STATE= { status:'idle', message:'' };
+
+let saveTimer  = null;
+let pushTimer  = null;
+let suppressPush = false;               /* held across a pull */
+let pulledOnce  = false;
+let pullPromise = null;
+
+
+/* ==========================================================================
+   4. SMALL HELPERS
+   ========================================================================== */
+
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+function wordCount(t){
+  const m = String(t || '').trim().match(/\S+/g);
+  return m ? m.length : 0;
+}
+function timeAgo(ms){
+  if(!ms) return 'never';
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if(s < 45)      return 'just now';
+  if(s < 90)      return 'a minute ago';
+  if(s < 3600)    return Math.floor(s/60) + ' min ago';
+  if(s < 86400)   return Math.floor(s/3600) + ' h ago';
+  if(s < 604800)  return Math.floor(s/86400) + ' d ago';
+  return new Date(ms).toLocaleDateString();
+}
+function dayLabel(ms){
+  if(!ms) return '';
+  const d = new Date(ms);
+  return d.toLocaleDateString(undefined,{ day:'numeric', month:'short', year:'numeric' });
+}
+function toast(msg, kind){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = 'toast up' + (kind ? ' ' + kind : '');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => { t.className = 'toast' + (kind ? ' ' + kind : ''); }, 2600);
+}
+function pikminOf(id){ return PIKMIN.find(p => p.id === id) || PIKMIN[0]; }
+function kidById(id){ return DB.kids.find(k => k.id === id) || null; }
+function postsOf(kidId){
+  return DB.posts.filter(p => p.kidId === kidId)
+    .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
+}
+function avatarHTML(pik, size){
+  const p = pikminOf(pik);
+  const sz = size || 'md';
+  return '<span class="pik pik-' + sz + '" style="background:' + p.body +
+         ';color:' + p.leaf + '"></span>';
+}
+function statusBadge(st){
+  const s = STATUS[st] || STATUS.draft;
+  return '<span class="badge ' + s.cls + '">' + s.label + '</span>';
+}
+
+
+/* ==========================================================================
+   5. LOCAL SAVE  (debounced — one write per burst of typing)
+   ========================================================================== */
+
+function isSuppressing(){ return suppressPush; }
+
+function scheduleSave(after){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    Store.writeDB(DB);
+    if(after) after();
+  }, AUTOSAVE_MS);
+}
+function saveNow(){
+  clearTimeout(saveTimer);
+  return Store.writeDB(DB);
+}
+function cancelPush(){ clearTimeout(pushTimer); }
+function hasPendingPush(){ return !!pushTimer; }
+
+
+/* ==========================================================================
+   6. CLOUD — the only code that talks to the backend
+   ========================================================================== */
+
+function cloudCfg(){ return SET.cloud || DEFAULT_BACKEND; }
+function cloudReady(){
+  const c = cloudCfg();
+  return !!(c.url && c.token && c.url.indexOf('https://script.google.com/') === 0);
+}
+function folderReady(){
+  const c = cloudCfg();
+  return !!(c.folderId || c.folderUrl);
+}
+function driveFolderId(){
+  const c = cloudCfg();
+  if(c.folderId) return c.folderId;
+  const m = String(c.folderUrl || '').match(/\/folders\/([A-Za-z0-9_-]+)/);
+  return m ? m[1] : '';
+}
+function setCloudState(status, message){
+  CLOUD_STATE = { status: status, message: message || '' };
+}
+
+/* ---- JSONP read ----------------------------------------------------------
+   Apps Script answers a GET with a 302 to script.googleusercontent.com. A
+   plain fetch cannot follow that and read the body, so reads go through a
+   <script> tag carrying ?callback=NAME. */
+function jsonp(action, extra, timeoutMs){
+  return new Promise((resolve, reject) => {
+    const c = cloudCfg();
+    if(!cloudReady()) return reject(new Error('No Sheet is set up yet.'));
+
+    const name = 'pbcb_' + Math.random().toString(36).slice(2, 9);
+    const params = new URLSearchParams();
+    params.set('action', action);
+    params.set('token', c.token);
+    params.set('callback', name);
+    Object.keys(extra || {}).forEach(k => params.set(k, extra[k]));
+
+    const script = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      done = true;
+      try{ delete window[name]; }catch(e){ window[name] = undefined; }
+      if(script.parentNode) script.parentNode.removeChild(script);
+    };
+    const timer = setTimeout(() => {
+      if(done) return;
+      cleanup();
+      reject(new Error('The Sheet did not answer in time.'));
+    }, timeoutMs || 20000);
+
+    window[name] = payload => {
+      if(done) return;
+      clearTimeout(timer);
+      cleanup();
+      if(payload && payload.ok) resolve(payload);
+      else reject(new Error((payload && payload.error) || 'The script refused the request.'));
+    };
+    script.onerror = () => {
+      if(done) return;
+      clearTimeout(timer);
+      cleanup();
+      reject(new Error('Could not reach the script. Check the URL, and that the '
+        + 'deployment is public and is on the latest version.'));
+    };
+    script.src = c.url + '?' + params.toString();
+    document.body.appendChild(script);
+  });
+}
+
+/* ---- POST write ----------------------------------------------------------
+   text/plain avoids a CORS preflight. The reply is readable because Apps
+   Script sends Access-Control-Allow-Origin: * on the redirect target. */
+async function postTo(body, timeoutMs){
+  const c = cloudCfg();
+  if(!cloudReady()) throw new Error('No Sheet is set up yet.');
+
+  const ctl  = new AbortController();
+  const timer= setTimeout(() => ctl.abort(), timeoutMs || 30000);
+  try{
+    const res = await fetch(c.url, {
+      method:'POST', redirect:'follow', signal:ctl.signal,
+      headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ token:c.token }, body))
+    });
+    const txt = await res.text();
+    let j = null; try{ j = JSON.parse(txt); }catch(e){}
+    if(!j){
+      throw new Error('The script sent back a page instead of data (HTTP ' + res.status +
+        '). Re-deploy it as a New version.');
+    }
+    if(!j.ok) throw new Error(j.error || 'The script refused the request.');
+    return j;
+  } finally { clearTimeout(timer); }
+}
+
+
+/* ---- the merge -----------------------------------------------------------
+   Version clock, not last-write-wins:
+     - newer updatedAt wins per story; on a tie the local copy wins (it has
+       the pictures)
+     - a story deleted elsewhere is never resurrected
+     - an approval already given is never taken away
+   Returns the merged db plus a flag for whether it differs from local. */
+function mergeSnapshot(mine, theirs){
+  const out   = { kids:[], posts:[], deleted:[] };
+  const seen  = {};
+
+  /* kids: union by id, newer name wins */
+  const kidMap = {};
+  (mine.kids || []).forEach(k => { kidMap[k.id] = Object.assign({}, k); });
+  (theirs.kids || []).forEach(k => {
+    if(!kidMap[k.id]) kidMap[k.id] = Object.assign({}, k);
+    else if((k.createdAt||0) < (kidMap[k.id].createdAt||0)) kidMap[k.id] = Object.assign({}, k);
+  });
+  out.kids = Object.keys(kidMap).map(id => kidMap[id]);
+
+  /* deletions are permanent — a union of both lists */
+  const del = {};
+  (mine.deleted   || []).forEach(id => { del[id] = 1; });
+  (theirs.deleted || []).forEach(id => { del[id] = 1; });
+  out.deleted = Object.keys(del);
+
+  const postMap = {};
+  (mine.posts   || []).forEach(p => { postMap[p.id] = Object.assign({}, p); });
+  (theirs.posts || []).forEach(p => {
+    const local = postMap[p.id];
+    if(!local){ postMap[p.id] = Object.assign({}, p); return; }
+    const lt = local.updatedAt || local.createdAt || 0;
+    const tt = p.updatedAt || p.createdAt || 0;
+    if(tt > lt){
+      /* theirs is newer — but never lose a picture or an approval we hold */
+      const merged = Object.assign({}, local, p);
+      if((local.attachments||[]).length > (p.attachments||[]).length)
+        merged.attachments = local.attachments;
+      if(local.approvedAt && !p.approvedAt) merged.approvedAt = local.approvedAt;
+      postMap[p.id] = merged;
+    }
+  });
+
+  /* drop anything that was deleted anywhere */
+  out.posts = Object.keys(postMap)
+    .filter(id => !del[id])
+    .map(id => postMap[id]);
+
+  /* did anything actually change? */
+  const sig = d => JSON.stringify({
+    k:(d.kids||[]).map(x=>[x.id,x.name,x.pikmin,x.createdAt]).sort(),
+    p:(d.posts||[]).map(x=>[x.id,x.updatedAt,x.status,x.title,x.body,
+                            (x.attachments||[]).length,x.approvedAt||null]).sort(),
+    d:(d.deleted||[]).slice().sort()
+  });
+  const changed = sig(mine) !== sig(out);
+  return { db: out, changed: changed };
+}
+
+/* ---- pull: read the Sheet and merge in ---------------------------------- */
+async function pullFromSheet(opts){
+  const force = !!(opts && opts.force);
+  if(!cloudReady()) return { ok:false, skipped:'no Sheet set up' };
+  if(pulledOnce && !force) return { ok:true, skipped:'already read this session' };
+  if(!force && !cloudCfg().pullOnOpen) return { ok:true, skipped:'check-on-open is off' };
+
+  const wasSuppressed = suppressPush;
+  suppressPush = true;
+  setCloudState('reading','Reading the Sheet…');
+  try{
+    const r = await jsonp('load', {}, 20000);
+    const remote = r.data || { kids:[], posts:[], deleted:[] };
+    const m = mergeSnapshot(DB, remote);
+    if(m.changed){ DB = m.db; saveNow(); }
+    pulledOnce = true;
+    const n = (DB.posts||[]).length;
+    setCloudState('ok', n ? ('Up to date — ' + n + ' stor' + (n===1?'y':'ies') + '.')
+                          : 'Connected. No stories yet.');
+    return { ok:true, changed:m.changed, posts:(DB.posts||[]).length };
+  }catch(e){
+    setCloudState('error', e.message);
+    return { ok:false, error:e.message };
+  }finally{
+    /* ALWAYS release, never restore a captured value. cloudPushSoon re-reads
+       the grown-up's setting itself, so false is the only safe resting state. */
+    if(!wasSuppressed) suppressPush = false;
+    else suppressPush = false;
+  }
+}
+
+/* ---- push: send everything up ------------------------------------------- */
+async function pushToSheet(){
+  if(!cloudReady()) return { ok:false, skipped:'no Sheet set up' };
+  setCloudState('sending','Sending…');
+  try{
+    const r = await postTo({
+      action:'sync',
+      data:{ kids:DB.kids, posts:DB.posts, deleted:DB.deleted }
+    }, 30000);
+    SET.cloud.lastSync  = Date.now();
+    SET.cloud.lastError = null;
+    Store.writeSettings(SET);
+    const n = (DB.posts||[]).length;
+    setCloudState('ok', 'Backed up — ' + n + ' stor' + (n===1?'y':'ies') + '.');
+    return { ok:true, posts:n };
+  }catch(e){
+    SET.cloud.lastError = e.message;
+    Store.writeSettings(SET);
+    setCloudState('error', e.message);
+    return { ok:false, error:e.message };
+  }
+}
+
+/* Unbidden backup — respects the grown-up's switch. */
+function pushSoon(delay){
+  if(suppressPush) return;
+  if(!cloudReady()) return;
+  if(!cloudCfg().autoPush) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => {
+    pushTimer = null;
+    if(suppressPush) return;
+    pushToSheet();
+  }, delay == null ? PUSH_DEBOUNCE_MS : delay);
+}
+
+/* Every successful login syncs. This is the promise that "log in anywhere and
+   your work is there". It is NOT gated by the two switches, because logging in
+   is a person asking — only a missing Sheet may stop it.
+   NOTE: it deliberately runs on every login, not once per page load, so a
+   second child on the same tablet still reads the Sheet. */
+let loginSyncPromise = null;
+function syncOnLogin(){
+  if(loginSyncPromise) return loginSyncPromise;
+  if(!cloudReady()){
+    setCloudState('idle','Not connected to a Sheet yet.');
+    return Promise.resolve({ ok:false, skipped:'no Sheet set up' });
+  }
+  loginSyncPromise = (async () => {
+    suppressPush = true;
+    let read = { ok:false }, write = { ok:false };
+    try{
+      read = await pullFromSheet({ force:true });
+    }catch(e){ read = { ok:false, error:e.message }; }
+    finally{ suppressPush = false; }          /* release BEFORE writing */
+
+    try{
+      write = await pushToSheet();
+    }catch(e){ write = { ok:false, error:e.message }; }
+
+    if(read.ok || write.ok){
+      const n = (DB.posts||[]).length;
+      setCloudState('ok','Synced on this device — ' + n + ' stor' + (n===1?'y':'ies') + '.');
+    }
+    return { read:read, write:write };
+  })().catch(e => {
+    setCloudState('error', e.message);
+    return { ok:false, error:e.message };
+  }).then(r => { loginSyncPromise = null; return r; });
+
+  return loginSyncPromise;
+}
+
+/* ---- health check --------------------------------------------------------
+   Reports what is ACTUALLY on the Sheet, not just whether the URL answers.
+   A check that never reads the data sends people hunting in the wrong place. */
+async function runDoctor(){
+  const lines = [];
+  const c = cloudCfg();
+  lines.push('App build: ' + BUILD);
+  lines.push('Sheet URL: ' + (c.url ? c.url.slice(0,62) + '…' : '(none)'));
+  lines.push('Drive folder: ' + (driveFolderId() || '(none)'));
+  lines.push('Stories on this device: ' + (DB.posts||[]).length);
+  lines.push('');
+
+  if(!cloudReady()){ lines.push('STOP: no Sheet URL set. Paste one in Settings.'); return lines.join('\n'); }
+
+  lines.push('Asking the Sheet…');
+  try{
+    const p = await jsonp('ping', {}, 20000);
+    lines.push('  answered at ' + (p.at || '?'));
+    lines.push('  tabs: ' + ((p.tabs||[]).join(', ') || '(none)'));
+    if(p.lastBackup) lines.push('  last backup: ' + p.lastBackup);
+    else lines.push('  NO lastBackup in the reply -> this deployment is OLD.');
+    if(p.drive)      lines.push('  drive: ' + (p.drive.ok ? ('OK (' + p.drive.name + ')')
+                                             : ('problem — ' + p.drive.error)));
+    else             lines.push('  NO drive in the reply -> pictures will not upload.');
+  }catch(e){
+    lines.push('  FAILED: ' + e.message);
+  }
+
+  lines.push('');
+  lines.push('Reading the Sheet…');
+  try{
+    const r = await jsonp('load', {}, 20000);
+    const d = r.data || {};
+    lines.push('  stories on the Sheet: ' + ((d.posts||[]).length));
+    lines.push('  Pikmin on the Sheet: ' + ((d.kids||[]).length));
+    if((d.posts||[]).length === 0 && (DB.posts||[]).length > 0)
+      lines.push('  !! the Sheet is EMPTY while this device holds stories.');
+  }catch(e){
+    lines.push('  FAILED: ' + e.message);
+  }
+  return lines.join('\n');
+}
+
+
+/* ==========================================================================
+   7. PICTURES — shrink, then send to Drive
+   ========================================================================== */
+
+function shrinkImage(dataUrl){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, PIC_MAX_EDGE / Math.max(img.width, img.height));
+      const w = Math.round(img.width  * scale);
+      const h = Math.round(img.height * scale);
+      const cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      const g = cv.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0,0,w,h);   /* drawings may have alpha */
+      g.drawImage(img, 0, 0, w, h);
+      resolve(cv.toDataURL('image/jpeg', PIC_JPEG_Q));
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+async function uploadPicture(att, ctx){
+  if(!cloudReady())      throw new Error('No Sheet is set up, so pictures cannot be filed.');
+  if(!driveFolderId())   throw new Error('No Drive folder is set. Paste a folder link in Settings.');
+
+  const small = await shrinkImage(att.src);
+  const r = await postTo({
+    action:'uploadImage',
+    folderId: driveFolderId(),
+    dataUrl:  small,
+    kidId:    ctx.kidId   || '',
+    kidName:  ctx.kidName || '',
+    postId:   ctx.postId  || '',
+    postTitle:ctx.title   || ''
+  }, 45000);
+
+  att.src    = '';            /* the picture now lives in Drive */
+  att.driveId= r.fileId;
+  att.url    = r.url;
+  if(att.thumb) att.thumb = att.thumb;   /* local preview kept for speed */
+  return r;
+}
+
+
+/* ==========================================================================
+   8. RENDER
+   ========================================================================== */
+
+function render(){
+  const app = $('#app');
+  if     (VIEW.name === 'profiles') app.innerHTML = viewProfiles();
+  else if(VIEW.name === 'kid')      app.innerHTML = viewKid();
+  else if(VIEW.name === 'editor')   app.innerHTML = viewEditor();
+  else if(VIEW.name === 'read')     app.innerHTML = viewRead();
+  else if(VIEW.name === 'log')      app.innerHTML = viewLog();
+  else if(VIEW.name === 'newKid')   app.innerHTML = viewNewKid();
+  else app.innerHTML = viewProfiles();
+  renderGate();
+  try{ if(typeof window !== 'undefined' && window.scrollTo) window.scrollTo(0,0); }catch(e){}
+}
+
+/* ---- shared chrome ------------------------------------------------------ */
+function topbar(opts){
+  const o = opts || {};
+  const back = o.back
+    ? '<button class="tab" data-act="back">← Back</button>'
+    : '';
+  const logTab = (VIEW.name === 'editor' || VIEW.name === 'log')
+    ? ''
+    : '<button class="tab" data-act="openLog" title="Grown-ups only">' +
+      '<span class="ico">🔒</span><span class="lbl">Grown-ups</span></button>';
+  return '' +
+  '<div class="topbar"><div class="topbar-in">' +
+    back +
+    '<div class="brand grow">' +
+      avatarHTML('blue','sm') +
+      '<span>Pikmin Blog</span>' +
+    '</div>' +
+    logTab +
+  '</div></div>';
+}
+
+/* ---- 8a. profiles (the main page) --------------------------------------- */
+function viewProfiles(){
+  const kids = DB.kids;
+  const cards = kids.map(k => {
+    const n = postsOf(k.id).length;
+    return '' +
+    '<button class="kidcard" data-act="openKid" data-id="' + esc(k.id) + '">' +
+      avatarHTML(k.pikmin,'lg') +
+      '<div class="nm">' + esc(k.name) + '</div>' +
+      '<div class="ct">' + n + ' stor' + (n===1?'y':'ies') + '</div>' +
+    '</button>';
+  }).join('');
+
+  const addCard = '' +
+  '<button class="kidcard kidcard-dashed" data-act="newKid">' +
+    '<div style="font-size:1.9rem;color:var(--bark);font-weight:800">＋</div>' +
+    '<div class="nm" style="color:var(--bark)">New Pikmin</div>' +
+  '</button>';
+
+  const nobody = kids.length === 0;
+  const cloudLine = cloudStatusLine();
+
+  return topbar() + '' +
+  '<div class="wrap">' +
+    '<div class="hero">' +
+      '<div class="row spread row-wrap">' +
+        '<div>' +
+          '<h1>Who is writing today?</h1>' +
+          '<p class="muted" style="margin-top:4px">Pick your Pikmin and plant a story.</p>' +
+        '</div>' +
+        '<div style="font-size:2.3rem">🌱</div>' +
+      '</div>' +
+    '</div>' +
+    (nobody
+      ? '<div class="empty"><div class="big">🍃</div>' +
+        '<h3>No Pikmin yet</h3>' +
+        '<p>Tap the dashed card to create your first explorer —<br>each one gets their own colour and their own blog.</p></div>'
+      : '') +
+    '<div class="grid">' + cards + addCard + '</div>' +
+    '<div class="mt">' + cloudLine + '</div>' +
+  '</div>';
+}
+
+function cloudStatusLine(){
+  const dot = c => '<i style="width:9px;height:9px;border-radius:50%;background:' + c +
+                   ';display:inline-block;margin-right:6px"></i>';
+  let color = 'var(--ink-3)', msg = '';
+  if(!cloudReady()){
+    color = 'var(--warn)';
+    msg = 'Stories are kept on this device. A grown-up can connect a Google Sheet to sync between devices.';
+  }else{
+    const st = CLOUD_STATE.status;
+    if(st === 'error')      { color = 'var(--bad)';  msg = 'Sync problem: ' + esc(CLOUD_STATE.message); }
+    else if(st === 'ok')    { color = 'var(--ok)';   msg = esc(CLOUD_STATE.message || 'Synced.'); }
+    else if(st === 'reading'||st === 'sending'){ color = 'var(--sprout)'; msg = esc(CLOUD_STATE.message); }
+    else                    { msg = 'Connected to the Sheet. Log in to sync.'; }
+  }
+  return '<div class="card small muted row" style="gap:0">' + dot(color) + '<span>' + msg + '</span></div>';
+}
+
+/* ---- 8b. one kid's stories ---------------------------------------------- */
+function viewKid(){
+  const kid = kidById(VIEW.kidId);
+  if(!kid){ VIEW.name = 'profiles'; return viewProfiles(); }
+  const posts = postsOf(kid.id);
+
+  const list = posts.map(p => {
+    const pv = p.preview || (p.attachments && p.attachments[0])
+      ? '<div class="pic" style="width:56px;height:56px">' +
+        '<img src="' + esc(p.preview || p.attachments[0].thumb || p.attachments[0].src || '') + '" alt="">' +
+        '</div>' : '';
+    const wc = wordCount(p.body);
+    return '' +
+    '<button class="story" data-act="openPost" data-id="' + esc(p.id) + '" style="width:100%;text-align:left">' +
+      pv +
+      '<div class="grow">' +
+        '<div class="row spread" style="gap:8px">' +
+          '<span class="ttl">' + esc(p.title || 'Untitled') + '</span>' +
+          statusBadge(p.status) +
+        '</div>' +
+        '<div class="meta">' + wc + ' word' + (wc===1?'':'s') + ' · ' +
+          dayLabel(p.updatedAt || p.createdAt) + '</div>' +
+        '<div class="excerpt">' + esc((p.body||'').slice(0,140)) + '</div>' +
+      '</div>' +
+    '</button>';
+  }).join('');
+
+  return topbar({back:true}) + '' +
+  '<div class="wrap">' +
+    '<div class="card-lift card row" style="gap:14px;margin-top:18px">' +
+      avatarHTML(kid.pikmin,'lg') +
+      '<div class="grow">' +
+        '<h2>' + esc(kid.name) + '</h2>' +
+        '<div class="muted small">' + posts.length + ' stor' + (posts.length===1?'y':'ies') + '</div>' +
+      '</div>' +
+      '<button class="btn btn-sun" data-act="newPost">✏️ Write</button>' +
+    '</div>' +
+    '<div class="stack mt">' +
+      (posts.length ? list
+        : '<div class="empty"><div class="big">🌿</div><h3>Nothing planted yet</h3>' +
+          '<p>Tap <b>Write</b> to start your first story.</p></div>') +
+    '</div>' +
+  '</div>';
+}
+
+/* ---- 8c. the editor ------------------------------------------------------ */
+function viewEditor(){
+  if(!DRAFT){ VIEW.name='profiles'; return viewProfiles(); }
+  const d = DRAFT;
+  const limit = SET.wordLimit;
+  const wc = wordCount(d.body);
+  const over = wc > limit;
+  const pct = Math.min(100, Math.round(wc / limit * 100));
+
+  const pics = (d.attachments||[]).map((a,i) =>
+    '<div class="pic">' +
+      '<img src="' + esc(a.thumb || a.src || a.url || '') + '" alt="">' +
+      '<span class="dot" style="background:' +
+        (a.driveId ? 'var(--ok)' : 'var(--ink-3)') + '"></span>' +
+      '<button class="x" data-act="delPic" data-i="' + i + '" title="Remove">✕</button>' +
+    '</div>'
+  ).join('');
+
+  return topbar() + '' +
+  '<div class="wrap">' +
+    '<div class="row spread row-wrap mt-sm mb">' +
+      '<div class="row">' +
+        avatarHTML((kidById(d.kidId)||{}).pikmin,'sm') +
+        '<b>' + esc((kidById(d.kidId)||{}).name || '') + '</b>' +
+      '</div>' +
+      '<div class="row">' +
+        '<span class="pill">' + (d.driveId ? 'Backed up' : 'On this device') + '</span>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="editor-wrap">' +
+      '<input class="input" id="fTitle" placeholder="Give your story a name…" ' +
+        'value="' + esc(d.title) + '" maxlength="90" autocomplete="off">' +
+
+      '<div class="toolbar mt-sm">' +
+        '<button class="tool" data-act="fmt" data-t="bold"   title="Bold"><b>B</b></button>' +
+        '<button class="tool" data-act="fmt" data-t="italic" title="Italic"><i>I</i></button>' +
+        '<button class="tool" data-act="fmt" data-t="under"  title="Underline"><u>U</u></button>' +
+        '<span style="width:1.5px;background:var(--line);margin:0 4px"></span>' +
+        '<button class="tool" data-act="draw" title="Draw a picture">🎨</button>' +
+        '<button class="tool" data-act="photo" title="Add a photo">📷</button>' +
+      '</div>' +
+
+      '<textarea class="input" id="fBody" placeholder="Once upon a time…" ' +
+        'style="min-height:230px">' + esc(d.body) + '</textarea>' +
+
+      '<div class="row spread small mt-sm">' +
+        '<span class="' + (over ? '' : 'muted') + '" style="' + (over ? 'color:var(--warn);font-weight:800' : '') + '">' +
+          wc + ' / ' + limit + ' words' + (over ? ' — a bit long!' : '') +
+        '</span>' +
+        '<span class="muted tiny" id="saveHint"></span>' +
+      '</div>' +
+      '<div class="wordbar"><span class="' + (over?'over':'') + '" style="width:' + pct + '%"></span></div>' +
+
+      '<input type="file" id="fFile" accept="image/*" class="hide">' +
+      (pics ? '<div class="pics">' + pics + '</div>' : '') +
+
+      '<div id="drawBox"></div>' +
+
+      '<hr class="sep">' +
+      '<div class="row row-wrap" style="gap:9px">' +
+        '<button class="btn" data-act="savePost">Save</button>' +
+        '<button class="btn btn-ghost" data-act="readPost">Read it</button>' +
+        '<div class="grow"></div>' +
+        '<button class="btn btn-quiet btn-sm" data-act="delPost">Delete</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+/* ---- 8d. read a story ---------------------------------------------------- */
+function viewRead(){
+  const p = DB.posts.find(x => x.id === VIEW.postId);
+  if(!p){ VIEW.name='profiles'; return viewProfiles(); }
+  const kid = kidById(p.kidId) || { name:'', pikmin:'red' };
+  const canApprove = SET.requireApproval && p.status === 'pending';
+
+  const body = esc(p.body).split(/\n{2,}/)
+    .map(par => '<p style="margin:.7rem 0">' + par.replace(/\n/g,'<br>') + '</p>').join('');
+
+  const pics = (p.attachments||[]).map(a =>
+    '<img src="' + esc(a.thumb || a.src || a.url || '') + '" alt="" ' +
+    'style="max-width:100%;border-radius:14px;border:2px solid var(--line);margin:9px 0">'
+  ).join('');
+
+  return topbar({back:true}) + '' +
+  '<div class="wrap wrap-narrow">' +
+    '<div class="panel mt">' +
+      '<div class="row" style="gap:12px">' +
+        avatarHTML(kid.pikmin,'md') +
+        '<div class="grow">' +
+          '<h2>' + esc(p.title || 'Untitled') + '</h2>' +
+          '<div class="muted small">by ' + esc(kid.name) + ' · ' +
+            dayLabel(p.updatedAt || p.createdAt) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="mt-sm">' + statusBadge(p.status) +
+        (p.approvedAt ? ' <span class="pill">Approved ' + dayLabel(p.approvedAt) + '</span>' : '') +
+      '</div>' +
+      pics +
+      '<div style="font-size:1.06rem;line-height:1.75">' + (body || '<p class="muted">(empty)</p>') + '</div>' +
+      '<hr class="sep">' +
+      '<div class="row row-wrap" style="gap:9px">' +
+        '<button class="btn btn-ghost" data-act="back">← Back</button>' +
+        (canApprove ? '<button class="btn btn-sun" data-act="approve" data-id="' + esc(p.id) + '">✓ Approve</button>' : '') +
+        '<button class="btn" data-act="editPost" data-id="' + esc(p.id) + '">Edit</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+/* ---- 8e. new kid --------------------------------------------------------- */
+function viewNewKid(){
+  const swatches = PIKMIN.map(p =>
+    '<button class="sw" data-act="pickPik" data-id="' + p.id + '" title="' + esc(p.name) + '" ' +
+    'style="background:' + p.body + '"></button>').join('');
+  return topbar({back:true}) + '' +
+  '<div class="wrap wrap-narrow">' +
+    '<div class="panel mt">' +
+      '<h2>New Pikmin</h2>' +
+      '<p class="muted small">Give your explorer a name and a colour.</p>' +
+      '<label class="fld"><span>Name</span>' +
+        '<input class="input" id="nName" maxlength="20" placeholder="e.g. Kaixuen" ' +
+          'value="' + esc(VIEW.newName || '') + '" autocomplete="off"></label>' +
+      '<label class="fld"><span>Colour</span></label>' +
+      '<div class="swatches" id="nSw">' + swatches + '</div>' +
+      '<div class="tc mt">' + avatarHTML(VIEW.newPik || 'red','lg') + '</div>' +
+      '<hr class="sep">' +
+      '<div class="row" style="gap:9px">' +
+        '<button class="btn" data-act="createKid">Create</button>' +
+        '<button class="btn btn-ghost" data-act="back">Cancel</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+/* ---- 8f. grown-ups' log -------------------------------------------------- */
+function viewLog(){
+  const c = cloudCfg();
+  const kids = DB.kids.map(k => {
+    const n = postsOf(k.id).length;
+    return '<div class="kv"><span class="k">' + esc(k.name) + '</span>' +
+           '<span class="v">' + n + ' stor' + (n===1?'y':'ies') + ' ' +
+           '<button class="btn btn-quiet btn-sm" data-act="delKid" data-id="' + esc(k.id) + '" ' +
+           'style="margin-left:8px">Remove</button></span></div>';
+  }).join('') || '<p class="muted small">No Pikmin yet.</p>';
+
+  const waiting = DB.posts.filter(p => p.status === 'pending');
+  const queue = waiting.map(p => {
+    const k = kidById(p.kidId) || { name:'?' };
+    return '<div class="kv"><span class="k">' + esc(p.title || 'Untitled') +
+           ' <span class="tiny">(' + esc(k.name) + ')</span></span>' +
+           '<span class="v"><button class="btn btn-sun btn-sm" data-act="approve" data-id="' +
+           esc(p.id) + '">Approve</button></span></div>';
+  }).join('') || '<p class="muted small">Nothing waiting.</p>';
+
+  return topbar() + '' +
+  '<div class="wrap">' +
+    '<div class="row spread row-wrap mt-sm">' +
+      '<h2>Grown-ups</h2>' +
+      '<button class="btn btn-quiet btn-sm" data-act="lock">Lock 🔒</button>' +
+    '</div>' +
+
+    '<div class="card mt">' +
+      '<h3>Waiting for approval</h3>' + queue +
+    '</div>' +
+
+    '<div class="card mt">' +
+      '<h3>Pikmin</h3>' + kids +
+    '</div>' +
+
+    '<div class="card mt">' +
+      '<h3>Stories need approval before they bloom</h3>' +
+      '<label class="row" style="gap:9px;margin-top:9px">' +
+        '<input type="checkbox" id="sApproval" ' + (SET.requireApproval?'checked':'') + '>' +
+        '<span>Hold new stories until a grown-up approves them</span></label>' +
+      '<label class="fld"><span>Word limit for one story</span>' +
+        '<input class="input" id="sWords" type="number" min="50" max="5000" value="' + SET.wordLimit + '"></label>' +
+      '<label class="fld"><span>What the children call you</span>' +
+        '<input class="input" id="sName" maxlength="24" value="' + esc(SET.grownUpName) + '"></label>' +
+      '<button class="btn mt" data-act="savePrefs">Save</button>' +
+    '</div>' +
+
+    '<div class="card mt">' +
+      '<h3>Google Sheet</h3>' +
+      '<p class="muted small">Paste the Web app URL from your Apps Script deployment, ' +
+        'ending in <code>/exec</code>.</p>' +
+      '<label class="fld"><span>Web app URL</span>' +
+        '<input class="input" id="cUrl" value="' + esc(c.url) + '" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false"></label>' +
+      '<label class="fld"><span>Shared token</span>' +
+        '<input class="input" id="cToken" value="' + esc(c.token) + '" autocomplete="off" spellcheck="false"></label>' +
+      '<label class="fld"><span>Drive folder link (for pictures)</span>' +
+        '<input class="input" id="cFolder" value="' + esc(c.folderUrl || '') + '" ' +
+          'placeholder="https://drive.google.com/drive/folders/…" autocomplete="off" spellcheck="false"></label>' +
+      '<label class="row" style="gap:9px;margin-top:12px">' +
+        '<input type="checkbox" id="cAuto" ' + (c.autoPush?'checked':'') + '>' +
+        '<span>Back up every change automatically</span></label>' +
+      '<label class="row" style="gap:9px;margin-top:6px">' +
+        '<input type="checkbox" id="cOpen" ' + (c.pullOnOpen?'checked':'') + '>' +
+        '<span>Check the Sheet when the app opens</span></label>' +
+      '<div class="row row-wrap" style="gap:9px;margin-top:14px">' +
+        '<button class="btn" data-act="saveCloud">Save</button>' +
+        '<button class="btn btn-ghost" data-act="testCloud">Test</button>' +
+        '<button class="btn btn-sun" data-act="pushNow">Back up now</button>' +
+      '</div>' +
+      '<p class="muted tiny" style="margin-top:11px">These values are visible to anyone who ' +
+        'opens the page. Keep the <b>Sheet itself private</b> — that is what protects your family\'s work.</p>' +
+    '</div>' +
+
+    '<div class="card mt">' +
+      '<h3>This device</h3>' +
+      '<div class="kv"><span class="k">Build</span><span class="v">' + BUILD + '</span></div>' +
+      '<div class="kv"><span class="k">Stories here</span><span class="v">' + (DB.posts||[]).length + '</span></div>' +
+      '<div class="kv"><span class="k">Last backup</span><span class="v">' + timeAgo(c.lastSync) + '</span></div>' +
+      (c.lastError ? '<div class="kv"><span class="k">Last problem</span><span class="v" style="color:var(--bad)">' +
+        esc(c.lastError) + '</span></div>' : '') +
+      '<div class="row row-wrap" style="gap:9px;margin-top:13px">' +
+        '<button class="btn btn-ghost" data-act="doctor">Check this device</button>' +
+        '<button class="btn btn-quiet" data-act="wipe">Start over on this device</button>' +
+      '</div>' +
+      '<div id="logOut" class="mt-sm"></div>' +
+    '</div>' +
+
+    '<p class="muted tiny tc mt">Pikmin Blog ' + BUILD + '</p>' +
+  '</div>';
+}
+
+/* ---- 8g. the gate -------------------------------------------------------- */
+let GATE = { show:false, mode:'family', entry:'', err:'', pendingAct:null };
+
+function renderGate(){
+  const el = $('#gate');
+  if(!GATE.show){ el.innerHTML = ''; return; }
+  const isPin = GATE.mode === 'pin';
+  el.innerHTML = '' +
+  '<div class="gate">' +
+    '<div class="box" role="dialog" aria-modal="true">' +
+      '<div class="tc">' + avatarHTML(isPin ? 'purple' : 'yellow','lg') + '</div>' +
+      '<h2 class="tc mt-sm">' + (isPin ? 'Grown-ups only' : 'Hello!') + '</h2>' +
+      '<p class="tc muted small">' + (isPin
+        ? 'Enter the grown-up PIN to continue.'
+        : 'Type the family password to start writing.') + '</p>' +
+      '<input class="input mt" id="gIn" type="password" inputmode="' +
+        (isPin ? 'numeric' : 'text') + '" ' +
+        (isPin ? 'maxlength="12"' : '') +
+        ' placeholder="' + (isPin ? '••••••' : 'password') + '" autocomplete="off">' +
+      (GATE.err ? '<p class="tc small" style="color:var(--bad);font-weight:800;margin-top:9px">' +
+        esc(GATE.err) + '</p>' : '') +
+      '<div class="row" style="gap:9px;margin-top:14px">' +
+        '<button class="btn grow" data-act="gateOk">Enter</button>' +
+        '<button class="btn btn-quiet" data-act="gateCancel">Cancel</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+  const inp = $('#gIn');
+  if(inp){ inp.focus(); }
+}
+function openGate(mode, pendingAct){
+  GATE = { show:true, mode:mode, entry:'', err:'', pendingAct:pendingAct || null };
+  renderGate();
+}
+function closeGate(){ GATE = { show:false, mode:'family', entry:'', err:'', pendingAct:null }; renderGate(); }
+
+
+/* ==========================================================================
+   9. ACTIONS
+   ========================================================================== */
+
+const ACTIONS = {
+
+  /* ---- navigation ---- */
+  back(){
+    if(VIEW.name === 'editor' && DRAFT){ saveDraft(); }
+    if(VIEW.name === 'read' && VIEW.fromKid){ VIEW.name='kid'; VIEW.kidId=VIEW.fromKid; VIEW.fromKid=null; }
+    else if(VIEW.name === 'kid')      VIEW.name = 'profiles';
+    else if(VIEW.name === 'newKid')   VIEW.name = 'profiles';
+    else                              VIEW.name = 'profiles';
+    render();
+  },
+  openKid(d){ VIEW.name='kid'; VIEW.kidId = d.id; render(); },
+  openPost(d){
+    const p = DB.posts.find(x => x.id === d.id);
+    if(!p) return;
+    if(p.status === 'draft' && SESSION && p.kidId === SESSION.kidId){ openEditor(p.id); return; }
+    VIEW.fromKid = VIEW.kidId;
+    VIEW.name='read'; VIEW.postId = p.id; render();
+  },
+  openLog(){
+    if(SESSION && SESSION.grownUp){ VIEW.name='log'; render(); return; }
+    openGate('pin', () => { SESSION = { grownUp:true }; Store.writeSession(SESSION);
+      VIEW.name='log'; render(); });
+  },
+  lock(){ SESSION = null; Store.writeSession(null); VIEW.name='profiles'; render(); toast('Locked'); },
+
+  /* ---- gate ---- */
+  gateOk(){
+    const v = ($('#gIn') || {}).value || '';
+    if(GATE.mode === 'pin'){
+      if(String(v).trim() !== String(SET.pin)){
+        GATE.err = 'That PIN is not right.'; GATE.entry=''; renderGate(); return;
+      }
+    }else{
+      const t = String(v).trim().toLowerCase();
+      if(!t){ GATE.err='Please type the password.'; renderGate(); return; }
+      if(!pwOk(t)){ GATE.err = 'That is not the family password.'; renderGate(); return; }
+    }
+    const act = GATE.pendingAct;
+    closeGate();
+    if(act) act();
+  },
+  gateCancel(){ closeGate(); },
+
+  /* ---- kids ---- */
+  newKid(){ VIEW.name='newKid'; VIEW.newPik='red'; VIEW.newName=''; render(); },
+  pickPik(d){ VIEW.newPik = d.id; render(); },
+  createKid(){
+    const nm = (($('#nName')||{}).value || '').trim();
+    if(!nm){ toast('Please give a name','bad'); return; }
+    const kid = { id:uid(), name:nm, pikmin:VIEW.newPik || 'red', createdAt:Date.now() };
+    DB.kids.push(kid);
+    saveNow(); pushSoon();
+    VIEW.name='profiles';
+    render(); toast('Welcome, ' + nm + '!','ok');
+  },
+  delKid(d){
+    const kid = kidById(d.id);
+    if(!kid) return;
+    if(!confirm('Remove ' + kid.name + ' and all their stories?\n\nThis cannot be undone.')) return;
+    postsOf(kid.id).forEach(p => { DB.deleted.push(p.id); });
+    DB.posts = DB.posts.filter(p => p.kidId !== kid.id);
+    DB.kids  = DB.kids.filter(k => k.id !== kid.id);
+    saveNow(); pushSoon();
+    VIEW.name='log'; render(); toast('Removed ' + kid.name);
+  },
+
+  /* ---- writing ---- */
+  newPost(){
+    const kid = kidById(VIEW.kidId);
+    if(!kid) return;
+    const p = {
+      id:uid(), kidId:kid.id, title:'', body:'', attachments:[],
+      status: SET.requireApproval ? 'draft' : 'published',
+      createdAt:Date.now(), updatedAt:Date.now(), approvedAt: SET.requireApproval ? null : Date.now()
+    };
+    DB.posts.push(p);
+    saveNow();
+    openEditor(p.id);
+  },
+  fmt(d){
+    const ta = $('#fBody');
+    if(!ta) return;
+    const wrap = { bold:['**','**'], italic:['_','_'], under:['<u>','</u>'] }[d.t];
+    if(!wrap) return;
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.slice(s,e) || 'text';
+    ta.value = ta.value.slice(0,s) + wrap[0] + sel + wrap[1] + ta.value.slice(e);
+    ta.focus();
+    ta.selectionStart = s + wrap[0].length;
+    ta.selectionEnd   = s + wrap[0].length + sel.length;
+    onDraftChanged();
+  },
+  draw(){
+    const box = $('#drawBox');
+    if(!box) return;
+    if(box.innerHTML){ box.innerHTML = ''; return; }
+    box.innerHTML = '' +
+    '<div class="canvas-box">' +
+      '<canvas class="draw" id="cv" width="700" height="440"></canvas>' +
+      '<div class="swatches" id="sws">' +
+        ['#2E2A24','#D64545','#F2C230','#4A90D9','#5C7F42','#9B6BC4','#E88BA6','#8A6A50']
+          .map((c,i) => '<button class="sw' + (i===0?' on':'') + '" data-act="pickCol" data-c="' +
+            c + '" style="background:' + c + '"></button>').join('') +
+      '</div>' +
+      '<div class="row" style="gap:9px;margin-top:9px">' +
+        '<button class="btn btn-sm" data-act="keepDraw">Add drawing</button>' +
+        '<button class="btn btn-quiet btn-sm" data-act="clearDraw">Clear</button>' +
+      '</div>' +
+    '</div>';
+    initCanvas();
+  },
+  pickCol(d){ $$('#sws .sw').forEach(b => b.classList.remove('on'));
+    const b = $$('#sws .sw').find(x => x.dataset.c === d.c); if(b) b.classList.add('on');
+    CANVAS.color = d.c; },
+  clearDraw(){ if(CANVAS.ctx){ CANVAS.ctx.fillStyle='#fff';
+    CANVAS.ctx.fillRect(0,0,CANVAS.cv.width,CANVAS.cv.height); } },
+  keepDraw(){
+    if(!CANVAS.cv) return;
+    const url = CANVAS.cv.toDataURL('image/png');
+    if(!DRAFT) return;
+    DRAFT.attachments = DRAFT.attachments || [];
+    DRAFT.attachments.push({ id:uid(), kind:'drawing', src:url, thumb:url, at:Date.now() });
+    onDraftChanged();
+    $('#drawBox').innerHTML = '';
+    renderEditorPics();
+    toast('Drawing added — it will be filed when you save','ok');
+  },
+  photo(){ const f = $('#fFile'); if(f) f.click(); },
+  delPic(d){
+    if(!DRAFT) return;
+    DRAFT.attachments.splice(Number(d.i),1);
+    onDraftChanged(); renderEditorPics();
+  },
+  savePost(){
+    if(!DRAFT) return;
+    syncDraftFromDOM();
+    const p = DB.posts.find(x => x.id === DRAFT.id);
+    if(!p) return;
+    Object.assign(p, {
+      title:DRAFT.title, body:DRAFT.body, attachments:DRAFT.attachments,
+      updatedAt:Date.now()
+    });
+    if(SET.requireApproval && p.status === 'published') p.status = 'pending';
+    if(!SET.requireApproval && p.status !== 'published'){ p.status='published'; p.approvedAt = p.approvedAt || Date.now(); }
+    saveNow();
+    queuePictureUpload(p);
+    pushSoon();
+    toast('Saved','ok');
+    VIEW.kidId = p.kidId; VIEW.name='kid'; DRAFT=null; render();
+  },
+  readPost(){
+    if(!DRAFT) return;
+    syncDraftFromDOM();
+    const p = DB.posts.find(x => x.id === DRAFT.id);
+    if(!p) return;
+    Object.assign(p, { title:DRAFT.title, body:DRAFT.body, attachments:DRAFT.attachments, updatedAt:Date.now() });
+    saveNow();
+    VIEW.fromKid = p.kidId; VIEW.name='read'; VIEW.postId=p.id; DRAFT=null; render();
+  },
+  editPost(d){ openEditor(d.id); },
+  delPost(){
+    if(!DRAFT) return;
+    if(!confirm('Delete this story? This cannot be undone.')) return;
+    DB.posts = DB.posts.filter(p => p.id !== DRAFT.id);
+    DB.deleted.push(DRAFT.id);
+    const kidId = DRAFT.kidId;
+    saveNow(); pushSoon();
+    DRAFT=null; VIEW.kidId=kidId; VIEW.name='kid'; render(); toast('Deleted');
+  },
+  approve(d){
+    const p = DB.posts.find(x => x.id === d.id);
+    if(!p) return;
+    p.status = 'published';
+    p.approvedAt = Date.now();
+    saveNow(); pushSoon();
+    render(); toast('Approved — it has bloomed!','ok');
+  },
+
+  /* ---- settings ---- */
+  savePrefs(){
+    SET.requireApproval = !!($('#sApproval')||{}).checked;
+    const w = Number(($('#sWords')||{}).value);
+    if(w >= 50 && w <= 5000) SET.wordLimit = w;
+    SET.grownUpName = (($('#sName')||{}).value || 'Grown-up').trim() || 'Grown-up';
+    Store.writeSettings(SET);
+    render(); toast('Settings saved','ok');
+  },
+  saveCloud(){
+    const url   = (($('#cUrl')||{}).value || '').trim();
+    const token = (($('#cToken')||{}).value || '').trim();
+    const fol   = (($('#cFolder')||{}).value || '').trim();
+    const m = fol.match(/\/folders\/([A-Za-z0-9_-]+)/);
+    SET.cloud.url       = url;
+    SET.cloud.token     = token;
+    SET.cloud.folderUrl = fol;
+    SET.cloud.folderId  = m ? m[1] : (fol.match(/^[A-Za-z0-9_-]{20,}$/) ? fol : '');
+    SET.cloud.autoPush  = !!($('#cAuto')||{}).checked;
+    SET.cloud.pullOnOpen= !!($('#cOpen')||{}).checked;
+    Store.writeSettings(SET);
+    pulledOnce = false;               /* let a new URL be read next time */
+    render(); toast('Saved','ok');
+    if(cloudReady()) syncOnLogin();
+  },
+  async testCloud(){
+    const out = $('#logOut');
+    if(out) out.innerHTML = '<div class="logbox">Checking…</div>';
+    const txt = await runDoctor();
+    if($('#logOut')) $('#logOut').innerHTML = '<div class="logbox">' + esc(txt) + '</div>';
+  },
+  async pushNow(){
+    toast('Sending…');
+    const r = await pushToSheet();
+    if(r.ok) toast('Backed up','ok'); else toast(r.error || 'Could not reach the Sheet', 'bad');
+    render();
+  },
+  doctor(){
+    ACTIONS.testCloud();
+  },
+  wipe(){
+    if(!confirm('Clear everything on THIS device?\n\nThe Google Sheet is not touched, so ' +
+      'logging in again can bring it back.')) return;
+    Store.wipeDevice();
+    DB = freshDB(); SESSION = null;
+    pulledOnce = false;
+    VIEW.name='profiles'; render(); toast('This device is clear');
+  }
+};
+
+
+/* ==========================================================================
+   10. CANVAS (drawing)
+   ========================================================================== */
+
+const CANVAS = { cv:null, ctx:null, color:'#2E2A24', drawing:false };
+
+function initCanvas(){
+  const cv = $('#cv');
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.lineWidth = 5; ctx.lineCap='round'; ctx.lineJoin='round';
+  CANVAS.cv = cv; CANVAS.ctx = ctx; CANVAS.color = CANVAS.color || '#2E2A24';
+
+  const pos = ev => {
+    const r = cv.getBoundingClientRect();
+    const p = ev.touches ? ev.touches[0] : ev;
+    return { x:(p.clientX - r.left) * (cv.width / r.width),
+             y:(p.clientY - r.top ) * (cv.height / r.height) };
+  };
+  const start = ev => { ev.preventDefault(); CANVAS.drawing = true;
+    const q = pos(ev); ctx.beginPath(); ctx.moveTo(q.x,q.y); };
+  const move  = ev => { if(!CANVAS.drawing) return; ev.preventDefault();
+    const q = pos(ev); ctx.strokeStyle = CANVAS.color; ctx.lineTo(q.x,q.y); ctx.stroke(); };
+  const stop  = () => { CANVAS.drawing = false; };
+
+  cv.addEventListener('mousedown', start);
+  cv.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', stop);
+  cv.addEventListener('touchstart', start, { passive:false });
+  cv.addEventListener('touchmove',  move,  { passive:false });
+  cv.addEventListener('touchend',   stop);
+}
+
+
+/* ==========================================================================
+   11. DRAFT PLUMBING
+   ========================================================================== */
+
+function openEditor(postId){
+  const p = DB.posts.find(x => x.id === postId);
+  if(!p) return;
+  DRAFT = {
+    id:p.id, kidId:p.kidId,
+    title:p.title || '', body:p.body || '',
+    attachments: JSON.parse(JSON.stringify(p.attachments || []))
+  };
+  VIEW.name='editor'; VIEW.postId = p.id;
+  render();
+}
+
+function syncDraftFromDOM(){
+  if(!DRAFT) return;
+  const t = $('#fTitle'), b = $('#fBody');
+  if(t) DRAFT.title = t.value;
+  if(b) DRAFT.body  = b.value;
+}
+function saveDraft(){
+  syncDraftFromDOM();
+  if(!DRAFT) return;
+  const p = DB.posts.find(x => x.id === DRAFT.id);
+  if(!p) return;
+  Object.assign(p, { title:DRAFT.title, body:DRAFT.body,
+    attachments:DRAFT.attachments, updatedAt:Date.now() });
+  saveNow();
+}
+function onDraftChanged(){
+  syncDraftFromDOM();
+  const hint = $('#saveHint');
+  if(hint) hint.textContent = 'saving…';
+  scheduleSave(() => {
+    saveDraft();
+    if($('#saveHint')) $('#saveHint').textContent = 'saved ' + new Date().toLocaleTimeString();
+  });
+}
+function renderEditorPics(){
+  if(!DRAFT) return;
+  const host = $('.pics');
+  const html = (DRAFT.attachments||[]).map((a,i) =>
+    '<div class="pic"><img src="' + esc(a.thumb || a.src || a.url || '') + '" alt="">' +
+    '<span class="dot" style="background:' + (a.driveId ? 'var(--ok)' : 'var(--ink-3)') + '"></span>' +
+    '<button class="x" data-act="delPic" data-i="' + i + '">✕</button></div>').join('');
+  if(host) host.innerHTML = html;
+  else if(html && DRAFT){
+    const box = $('#drawBox');
+    if(box) box.insertAdjacentHTML('beforebegin', '<div class="pics">' + html + '</div>');
+  }
+}
+
+/* Pictures go up one at a time, after the story itself is safe. A picture
+   that fails is left marked, not lost — it is still on the device. */
+async function queuePictureUpload(post){
+  const pend = (post.attachments||[]).filter(a => !a.driveId && (a.src || a.thumb));
+  if(!pend.length || !cloudReady()) return;
+  const kid = kidById(post.kidId) || {};
+  for(const att of pend){
+    try{
+      await uploadPicture(att, {
+        kidId:post.kidId, kidName:kid.name, postId:post.id, title:post.title
+      });
+    }catch(e){
+      toast('A picture stayed on this device: ' + e.message, 'bad');
+      break;
+    }
+  }
+  saveNow(); pushSoon();
+}
+
+
+/* ==========================================================================
+   12. EVENT WIRING
+   ========================================================================== */
+
+document.addEventListener('click', ev => {
+  const t = ev.target.closest('[data-act]');
+  if(!t) return;
+  const act = t.dataset.act;
+  if(!ACTIONS[act]) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  ACTIONS[act](t.dataset);
+});
+
+document.addEventListener('input', ev => {
+  const id = ev.target.id;
+  if(id === 'fTitle' || id === 'fBody') onDraftChanged();
+});
+
+document.addEventListener('change', ev => {
+  const el = ev.target;
+  if(el.id !== 'fFile') return;
+  const f = el.files && el.files[0];
+  if(!f || !DRAFT) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    DRAFT.attachments = DRAFT.attachments || [];
+    DRAFT.attachments.push({ id:uid(), kind:'photo', src:rd.result, thumb:rd.result, at:Date.now() });
+    onDraftChanged(); renderEditorPics();
+    toast('Photo added — it will be filed when you save','ok');
+  };
+  rd.readAsDataURL(f);
+  el.value = '';
+});
+
+document.addEventListener('keydown', ev => {
+  if(ev.key === 'Enter' && GATE.show && document.activeElement && document.activeElement.id === 'gIn'){
+    ev.preventDefault(); ACTIONS.gateOk();
+  }
+  if(ev.key === 'Escape' && GATE.show) closeGate();
+});
+
+/* Leaving with unsaved words? Save them. */
+window.addEventListener('beforeunload', () => { if(DRAFT) saveDraft(); });
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden && DRAFT) saveDraft();
+});
+
+
+/* ==========================================================================
+   13. BOOT
+   ========================================================================== */
+
+function boot(){
+  /* A warm start: if the Sheet is reachable and check-on-open is on, read it
+     behind the gate so the first paint already has the family's work. This is
+     an optimisation, not the guarantee — the guarantee is syncOnLogin. */
+  if(cloudReady() && cloudCfg().pullOnOpen){
+    pullFromSheet({ force:false }).catch(() => {});
+  }
+  const s = Store.readSession();
+  if(s && (s.kidId || s.grownUp)) SESSION = s; else SESSION = null;
+  render();
+}
+
+boot();
+
+/* ---- exposed for tests only -------------------------------------------- */
+if(typeof window !== 'undefined'){
+  window.__pb = {
+    Store, DB: () => DB, SET: () => SET,
+    render, mergeSnapshot, normalizeSettings, freshDB,
+    pwOk, hashPw, wordCount, uid,
+    pullFromSheet, pushToSheet, syncOnLogin,
+    cloudReady, cloudCfg, driveFolderId, folderReady,
+    setDB: d => { DB = d; }, setSET: s => { SET = normalizeSettings(s); },
+    setView: v => { VIEW = v; }, getView: () => VIEW,
+    getDraft: () => DRAFT, setDraft: d => { DRAFT = d; },
+    setPulledOnce: v => { pulledOnce = v; }, getPulledOnce: () => pulledOnce,
+    hasPendingPush, cancelPush, isSuppressing: () => suppressPush,
+    setSuppressed: v => { suppressPush = v; },
+    setCloudState: (s,m) => setCloudState(s,m), getCloudState: () => CLOUD_STATE,
+    runDoctor, ACTIONS, BUILD, STATUS, PIKMIN,
+    setSession: s => { SESSION = s; }, getSession: () => SESSION
+  };
+}
+</script>
+</body>
+</html>

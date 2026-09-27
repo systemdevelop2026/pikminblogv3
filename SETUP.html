@@ -1,0 +1,320 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pikmin Blog v3 — Setup</title><style>
+:root{--leaf:#3E5A2E;--leaf2:#5C7F42;--ink:#2E2A24;--line:#E2DACB;--paper:#FFFDF7}
+*{box-sizing:border-box}
+body{font-family:'Nunito','Segoe UI',system-ui,sans-serif;line-height:1.65;color:var(--ink);
+background:linear-gradient(180deg,#F7FAF0,#EFF6E4);margin:0;padding:38px 20px 80px}
+main{max-width:780px;margin:0 auto;background:var(--paper);border:1.5px solid var(--line);
+border-radius:18px;padding:34px 42px;box-shadow:0 2px 0 rgba(74,53,39,.08),0 10px 30px rgba(74,53,39,.09)}
+h1{color:var(--leaf);font-size:1.9rem;border-bottom:3px solid #8FB56A;padding-bottom:12px}
+h2{color:var(--leaf);margin-top:2.1em;font-size:1.32rem}
+h3{color:#4A3527;margin-top:1.7em;font-size:1.08rem}
+h4{color:#4A3527}
+code{background:#F2EDE2;padding:2px 6px;border-radius:5px;
+font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.89em;color:#4A3527}
+pre{background:#2E2A24;color:#D8E8C8;padding:16px;border-radius:11px;overflow:auto;
+font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.83rem;line-height:1.55}
+pre code{background:none;color:inherit;padding:0;font-size:1em}
+table{border-collapse:collapse;width:100%;margin:1em 0;font-size:.93rem}
+th,td{border:1.5px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:#F0F6E6;font-weight:800}
+blockquote{border-left:4px solid #F2C230;background:#FFFAEB;margin:1.3em 0;
+padding:14px 20px;border-radius:0 10px 10px 0}
+blockquote h3{margin-top:.2em}
+blockquote p{margin:.35em 0}
+a{color:var(--leaf2)}
+ul{padding-left:1.3em;margin:.8em 0}
+li{margin:.3em 0}
+hr{border:0;border-top:2px dashed var(--line);margin:2em 0}
+@media(max-width:600px){main{padding:22px 18px}h1{font-size:1.5rem}}
+</style></head><body><main><h1>Pikmin Blog v3 — Setup</h1>
+
+<p>Built from scratch 2026-09-27. Nothing here is shared with any earlier version.</p>
+
+<p><b>Time needed:</b> about 15 minutes, once. <b>What you need:</b> a Google account, and the file <code>index.html</code>.</p>
+
+<hr>
+
+<h2>What you are setting up</h2>
+
+<pre>
+   the app (index.html)                 Google
+   ────────────────────                 ──────
+   story text          ──── sends ───▶  a Sheet  (one tab per kind of record)
+   drawings &amp; photos   ──── sends ───▶  a Drive folder (real image files)
+
+   Any device that opens the app, logs in, and has the
+   same URL + token reads and writes that same Sheet.
+</pre>
+
+<p>Two pieces of Google, three steps:</p>
+
+<table>
+<tr><th>Step</th><th>What</th><th>Where</th></tr>
+<tr><td>1</td><td>Make the Sheet and the Drive folder</td><td>your Google account</td></tr>
+<tr><td>2</td><td>Paste the backend code and deploy it</td><td>Apps Script</td></tr>
+<tr><td>3</td><td>Connect the app to what you deployed</td><td>the app's Grown-ups screen</td></tr>
+</table>
+
+<hr>
+
+<h2>Step 1 — Make the two homes</h2>
+
+<h3>1a. The Sheet (holds the words)</h3>
+
+<ul>
+<li>Go to <b>sheets.new</b></li>
+<li>Name it something like <code>Pikmin Blog v3</code>.</li>
+<li><b>Leave it private.</b> This matters more than anything else in this guide —</li>
+<li>see *About privacy* at the bottom.</li>
+<li>You do <b>not</b> need to create any tabs. The script makes them</li>
+<li>(<code>Kids</code>, <code>Posts</code>, <code>Pictures</code>, <code>Meta</code>) on the first save.</li>
+</ul>
+
+<h3>1b. The Drive folder (holds the pictures)</h3>
+
+<ul>
+<li>In Google Drive, make a new folder, e.g. <code>Pikmin Pictures</code>.</li>
+<li>Open it. Look at the address bar:</li>
+<li><code>https://drive.google.com/drive/folders/</code><b><code>1AbC...xyz</code></b></li>
+<li>Copy that last part — the folder id. You will paste it in step 3.</li>
+<li>Leave the folder private too.</li>
+</ul>
+
+<hr>
+
+<h2>Step 2 — Put the backend in place</h2>
+
+<ul>
+<li>In your <b>Sheet</b>, click <b>Extensions → Apps Script</b>.</li>
+<li>Delete everything already in the editor.</li>
+<li>Open <code>google-apps-script.gs</code>, copy <b>all</b> of it, and paste it in.</li>
+<li>Near the top, change two lines:</li>
+</ul>
+
+<pre>
+var SECRET = 'change-me-to-something-yours';
+</pre>
+<p>Make up about 30 characters of nonsense. This is the shared token — the app must send the same one. <b>Write it down.</b></p>
+
+<pre>
+var DRIVE_FOLDER_ID = '';
+</pre>
+<p>Paste the folder id from step 1b between the quotes.</p>
+
+<ul>
+<li>Click <b>Save</b> (the floppy-disk icon).</li>
+<li>Click <b>Deploy → New deployment</b>.</li>
+<li>Click the <b>gear</b> next to "Select type" and pick <b>Web app</b></li>
+<li><b>Description:</b> anything</li>
+<li><b>Execute as:</b> Me</li>
+<li><b>Who has access:</b> Anyone</li>
+<li>Click <b>Deploy</b>. Google will ask for permission:</li>
+<li>Choose your account → <b>Advanced</b></li>
+<li><b>Go to \&lt;project\&gt; (unsafe)</b> → <b>Allow</b></li>
+</ul>
+
+<p>   That "unsafe" warning is normal. It appears because Google has not personally reviewed your own private script.</p>
+
+<ul>
+<li><b>Copy the Web app URL.</b> It ends in <code>/exec</code>. This is your endpoint.</li>
+</ul>
+
+<blockquote>
+<h3>⚠️ The one mistake everybody makes</h3>
+<p><b>Saving the script does not change what the live URL serves.</b></p>
+<p>If you edit the code later, you must publish a <b>New version</b>:</p>
+<p><b>Deploy → Manage deployments → pencil → Version: New version → Deploy</b></p>
+<p>Do this by editing the existing deployment, <b>not</b> by creating a second one —</p>
+<p>a new deployment gives you a different URL and you would have to reconnect the app.---</p>
+</blockquote>
+
+<h2>Step 3 — Connect the app</h2>
+
+<ul>
+<li>Open <code>index.html</code> (double-click it, or host it — see below).</li>
+<li>Click <b>Grown-ups</b> (top right). The first time, the PIN is <b>123456</b>.</li>
+<li>Fill in the <b>Google Sheet</b> card:</li>
+</ul>
+
+<table>
+<tr><th>Box</th><th>What goes in it</th></tr>
+<tr><td><b>Web app URL</b></td><td>the <code>/exec</code> URL from step 2</td></tr>
+<tr><td><b>Shared token</b></td><td>the same words you put in <code>SECRET</code></td></tr>
+<tr><td><b>Drive folder link</b></td><td>paste the whole folder <b>link</b>, not just the id</td></tr>
+</table>
+
+<ul>
+<li>Leave both checkboxes ticked.</li>
+<li>Click <b>Save</b>. Then click <b>Test</b>.</li>
+</ul>
+
+<p>You want to see all of this:</p>
+
+<pre>
+App build: v3.0.0
+Sheet URL: https://script.google.com/macros/s/…/exec
+Drive folder: 1AbC...xyz
+Stories on this device: 0
+
+Asking the Sheet…
+  answered at 2026-09-27T06:14:02.113Z
+  tabs: Kids, Posts, Pictures, Meta
+  last backup: ...
+  drive: OK (Pikmin Pictures)
+
+Reading the Sheet…
+  stories on the Sheet: 0
+  Pikmin on the Sheet: 0
+</pre>
+
+<p><b>If a line says the deployment is OLD, or that pictures will not upload</b> — you skipped publishing a New version. Go back to step 2.6 and use <b>Manage deployments → pencil → New version → Deploy</b>.</p>
+
+<hr>
+
+<h2>Step 4 — Change the things you should change</h2>
+
+<h3>The family password</h3>
+
+<p>Two passwords ship with the app so it works out of the box. <b>Change them.</b> Open <code>index.html</code> in any text editor and find:</p>
+
+<pre>
+const FAMILY_PW_HASHES = [
+  hashPw('letmewrite'),
+  hashPw('pikminv3')
+];
+</pre>
+
+<p>Replace the two words with your own. They are not stored as words — the app hashes them — but you still type the plain word to log in. Both are case-insensitive and ignore spaces at the ends.</p>
+
+<blockquote>
+<p>After changing this, every device must log in again with a password from the</p>
+<p>new list. Nothing else breaks.</p>
+</blockquote>
+
+<h3>The grown-up PIN</h3>
+
+<p>The PIN ships as <code>123456</code>. Change it in the same file:</p>
+
+<pre>
+const DEFAULT_PIN = '123456';
+</pre>
+
+<h3>Asking for approval</h3>
+
+<p>Grown-ups → <b>Hold new stories until a grown-up approves them</b>.</p>
+
+<p>On (the default): a child's story is saved as a *Sprout*, and only appears in the reader once a grown-up approves it. Off: stories publish immediately.</p>
+
+<hr>
+
+<h2>Putting it online (GitHub Pages)</h2>
+
+<p>The app is a single file, so hosting is genuinely one step.</p>
+
+<ul>
+<li>Make a new <b>public</b> repository on GitHub.</li>
+<li>Upload <code>index.html</code> (rename it to <code>index.html</code> if it is not already).</li>
+<li>Repo <b>Settings → Pages → Source: Deploy from a branch → main → / (root)</b>.</li>
+<li>Your app is at <code>https://&lt;your-name&gt;.github.io/&lt;repo&gt;/</code>.</li>
+</ul>
+
+<p>Keep <code>google-apps-script.gs</code> out of the public repo if you prefer — it contains your token too, and it does not need to be there for the app to run.</p>
+
+<blockquote>
+<p><b>Think before you publish.</b> A public page means anyone with the link can</p>
+<p>open the app and see the family password box. With the shipped password that</p>
+<p>is an open door. <b>Change the passwords first.</b></p>
+</blockquote>
+
+<hr>
+
+<h2>About privacy — the honest version</h2>
+
+<p>There is one thing in this design you should understand clearly.</p>
+
+<p><b>The token and the Sheet URL are visible to anyone who views the page source.</b> On a public GitHub Pages site, that is anyone at all. They are not a lock; they only turn away someone who has the URL but has never looked at the file.</p>
+
+<p><b>What actually protects your family is the Sheet's own sharing settings.</b></p>
+
+<ul>
+<li>Keep the Sheet <b>private</b>, or shared only with your own Google account.</li>
+<li>Keep the Drive folder <b>private</b> too. The script deliberately never changes</li>
+<li>sharing on a picture — files inherit whatever the folder is set to.</li>
+<li>The app never makes anything public on its own.</li>
+</ul>
+
+<p>So: a stranger who finds your GitHub page could *use* the app — but they cannot read your family's stories, because those live in a Sheet they cannot open, and the pictures live in a folder they cannot open. If that is not enough for you, host the app privately instead (or keep it as a local file).</p>
+
+<h3>If two families share one Sheet</h3>
+
+<p>Do not. Each family should have its own Sheet, its own token, and its own Drive folder. Two apps pointing at one Sheet will write over each other.</p>
+
+<hr>
+
+<h2>Day-to-day use</h2>
+
+<table>
+<tr><th>I want to…</th><th>Do this</th></tr>
+<tr><td>Add a child</td><td>Main screen → <b>＋ New Pikmin</b></td></tr>
+<tr><td>Write</td><td>Pick your Pikmin → <b>✏️ Write</b></td></tr>
+<tr><td>Draw a picture</td><td>In the editor, <b>🎨</b></td></tr>
+<tr><td>Add a photo</td><td>In the editor, <b>📷</b></td></tr>
+<tr><td>Read a story</td><td>Open it from the list</td></tr>
+<tr><td>Approve stories</td><td><b>Grown-ups</b> → <b>Waiting for approval</b></td></tr>
+<tr><td>Force a backup</td><td><b>Grown-ups → Back up now</b></td></tr>
+<tr><td>Check sync is healthy</td><td><b>Grown-ups → Check this device</b></td></tr>
+<tr><td>Fix a device</td><td><b>Grown-ups → Start over on this device</b></td></tr>
+</table>
+
+<p><b>Start over on this device</b> clears only that device. The Sheet is untouched, so logging in again brings everything back. It is the fix for a device that has somehow got stuck.</p>
+
+<hr>
+
+<h2>If something goes wrong</h2>
+
+<p><b>Ordered by how often each one actually happens.</b></p>
+
+<ul>
+<li><b>"Unknown action: uploadImage"</b> or pictures never appear in Drive</li>
+<li>→ the deployment is an old version. Publish a <b>New version</b> (step 2.6).</li>
+<li>Text will still sync while pictures fail, so this looks half-working.</li>
+</ul>
+
+<ul>
+<li><b>"Bad token"</b></li>
+<li>→ the token in the app does not match <code>SECRET</code> in the script. Compare them</li>
+<li>character by character.</li>
+</ul>
+
+<ul>
+<li><b>"Could not reach the script"</b></li>
+<li>→ the URL is wrong, or the deployment's *Who has access* is not <b>Anyone</b>,</li>
+<li>or the device is offline. Check all three.</li>
+</ul>
+
+<ul>
+<li><b>A second device shows nothing after logging in</b></li>
+<li>→ both devices must be running the same app build. Compare the <b>Build</b> line</li>
+<li>in Grown-ups → This device on each.</li>
+</ul>
+
+<ul>
+<li><b>Stories on one device, not the other</b></li>
+<li>→ click <b>Check this device</b> on both. It reports the real counts on each</li>
+<li>side, which tells you which device is behind.</li>
+</ul>
+
+<hr>
+
+<h2>What is in this folder</h2>
+
+<table>
+<tr><th>File</th><th>Role</th></tr>
+<tr><td><code>index.html</code></td><td>The app. This is the whole thing.</td></tr>
+<tr><td><code>google-apps-script.gs</code></td><td>The backend. Paste into Apps Script.</td></tr>
+<tr><td><code>SETUP.html</code></td><td>This guide, as a web page.</td></tr>
+<tr><td><code>README.md</code></td><td>How it works inside, for whoever maintains it.</td></tr>
+<tr><td><code>_test.js</code></td><td>126 checks. For a developer. <code>node _test.js</code></td></tr>
+<tr><td><code>_uitest.js</code></td><td>Drives the real UI in a browser. For a developer.</td></tr>
+</table>
+</main></body></html>
