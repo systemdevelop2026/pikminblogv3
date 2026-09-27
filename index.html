@@ -277,11 +277,12 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.0.0';
+const BUILD = 'v3.1.0';
 
 const KEY_DB       = 'pikminv3.db';
 const KEY_SETTINGS = 'pikminv3.settings';
 const KEY_SESSION  = 'pikminv3.session';
+const KEY_UNLOCKED = 'pikminv3.unlocked';
 
 /* Replace these two after you set up your own Sheet. See SETUP guide.
 
@@ -363,10 +364,28 @@ const Store = {
       return true;
     }catch(e){ return false; }
   },
+  /* Remember that this device has been signed in, so a reload does not demand
+     the password again. It is a convenience flag, not a credential: someone who
+     can edit localStorage can set it, and that is fine — they could also just
+     read the app's source. See the note above FAMILY_PW_HASHES. */
+  readUnlocked(){
+    try{ return localStorage.getItem(KEY_UNLOCKED) === '1'; }catch(e){ return false; }
+  },
+  writeUnlocked(on){
+    try{
+      if(on) localStorage.setItem(KEY_UNLOCKED, '1');
+      else   localStorage.removeItem(KEY_UNLOCKED);
+      return true;
+    }catch(e){ return false; }
+  },
   /* Used by the "start over" button. Wipes this device only — the Sheet is
      untouched, so a sync can bring everything back. */
   wipeDevice(){
-    try{ localStorage.removeItem(KEY_DB); localStorage.removeItem(KEY_SESSION); }catch(e){}
+    try{
+      localStorage.removeItem(KEY_DB);
+      localStorage.removeItem(KEY_SESSION);
+      localStorage.removeItem(KEY_UNLOCKED);
+    }catch(e){}
   }
 };
 
@@ -396,17 +415,23 @@ function normalizeSettings(s){
     }
   };
 }
-const DEFAULT_PIN = '123456';
+const DEFAULT_PIN = '489487';
 
-/* The family password is kept as a hash, not the words themselves. */
+/* The family password is kept as a hash, not the words themselves.
+   NOTE: a hash here stops a casual reader of the page source from reading the
+   password off the screen. It does NOT make this a secure login — anyone who can
+   read the JavaScript can brute-force a short password offline in moments. What
+   it protects against is the honest threat: a stranger who finds the link, and a
+   child who has not been given the password. */
 function hashPw(s){
   let h = 5381;
   for(const ch of ('pbv3::' + String(s))) h = (((h << 5) + h) + ch.charCodeAt(0)) >>> 0;
   return h.toString(36);
 }
 const FAMILY_PW_HASHES = [
-  hashPw('letmewrite'),   /* <-- CHANGE THESE. See SETUP guide. */
-  hashPw('pikminv3')
+  hashPw('ngkimhooi'),
+  hashPw('ngkaixuen'),
+  hashPw('ngyeeching')
 ];
 
 function pwOk(entry){
@@ -427,6 +452,15 @@ let VIEW       = { name:'profiles', postId:null, kidId:null };
 let DRAFT      = null;                  /* only while the editor is open */
 let BUSY       = false;                 /* a network call is in flight */
 let CLOUD_STATE= { status:'idle', message:'' };
+
+/* The login wall. Until this is true the app renders nothing but the sign-in
+   card — no kids, no stories, no chips. It is a separate flag from SESSION
+   because two different questions are being asked:
+     LOCKED  -> "may this person use the app at all?"      (the family password)
+     SESSION -> "which child, or is this a grown-up?"      (chosen after login)
+   Clearing SESSION (Lock) must NOT throw the user back to the login card. */
+let LOCKED     = true;
+let LOGIN_ERR  = '';
 
 let saveTimer  = null;
 let pushTimer  = null;
@@ -926,6 +960,15 @@ function render(){
   rendering = true;
   let carried = null;
   try{
+    /* The login wall comes first, and returns early. Nothing below it runs
+       while locked, so no story text ever reaches the DOM. */
+    if(LOCKED){
+      app.innerHTML = viewLogin();
+      renderGate();
+      focusLoginInput();
+      return;
+    }
+
     /* The drawing pad is injected into an empty #drawBox at runtime, so a
        re-render would silently throw away a half-finished picture. Carry it
        across. This matters because setCloudState can now repaint at any
@@ -982,6 +1025,10 @@ function topbar(opts){
     ? ''
     : '<button class="tab" data-act="openLog" title="Grown-ups only">' +
       '<span class="ico">🔒</span><span class="lbl">Grown-ups</span></button>';
+  /* Signing out puts the password wall back up. It sits in the top bar on every
+     inner screen; the main page adds its own copy beside the Grown-ups tab. */
+  const lockTab = '<button class="tab" data-act="lockApp" title="Sign out">' +
+      '<span class="ico">🚪</span><span class="lbl">Sign out</span></button>';
   return '' +
   '<div class="topbar"><div class="topbar-in">' +
     back +
@@ -990,6 +1037,7 @@ function topbar(opts){
       '<span>Pikmin Blog</span>' +
     '</div>' +
     logTab +
+    lockTab +
   '</div></div>';
 }
 
@@ -1354,7 +1402,43 @@ function viewLog(){
   '</div>';
 }
 
-/* ---- 8g. the gate -------------------------------------------------------- */
+/* ---- 8g. the login wall ------------------------------------------------
+   Sits in front of everything. While LOCKED is true, viewProfiles() and friends
+   are never called, so no story text is ever put in the DOM. That matters: it
+   means the words are not merely hidden with CSS, they are not there at all. */
+function viewLogin(){
+  return '' +
+  '<div class="wrap">' +
+    '<div class="hero" style="margin-top:8vh">' +
+      '<div class="tc">' + avatarHTML('yellow','lg') + '</div>' +
+      '<h1 class="tc" style="margin:14px 0 4px">Pikmin Blog</h1>' +
+      '<p class="tc muted small" style="margin:0">A garden of stories. Please sign in.</p>' +
+    '</div>' +
+    '<div class="card">' +
+      '<label class="fld" style="margin-top:0"><span>Family password</span>' +
+      '<input class="input" id="loginIn" type="password" autocomplete="current-password" ' +
+        'placeholder="Type the family password" autocapitalize="off" spellcheck="false">' +
+      '</label>' +
+      (LOGIN_ERR
+        ? '<p class="small" style="color:var(--bad);font-weight:800;margin:9px 0 0">' +
+          esc(LOGIN_ERR) + '</p>'
+        : '') +
+      '<button class="btn" data-act="loginTry" style="width:100%;margin-top:14px">Sign in</button>' +
+    '</div>' +
+    '<p class="tc muted tiny mt">Only people who know the password can read or write here.</p>' +
+  '</div>';
+}
+
+/* Focus the password box after the wall paints, so a phone shows the keyboard
+   straight away. Wrapped because focus() is not meaningful in the test sandbox. */
+function focusLoginInput(){
+  try{
+    const el = $('#loginIn');
+    if(el && typeof el.focus === 'function') el.focus();
+  }catch(e){}
+}
+
+/* ---- 8h. the gate -------------------------------------------------------- */
 let GATE = { show:false, mode:'family', entry:'', err:'', pendingAct:null };
 
 function renderGate(){
@@ -1429,6 +1513,38 @@ const ACTIONS = {
     pullFromSheet({ force:true })
       .then(r => { if(r && r.ok) toast('Read ' + ((DB.posts||[]).length) + ' stories','ok'); })
       .catch(() => {});
+  },
+
+  /* ---- login wall ---- */
+  loginTry(){
+    const v = (($('#loginIn') || {}).value || '');
+    if(!String(v).trim()){
+      LOGIN_ERR = 'Please type the family password.'; render(); return;
+    }
+    if(!pwOk(v)){
+      LOGIN_ERR = 'That is not the family password.';
+      const el = $('#loginIn'); if(el) el.value = '';
+      render(); return;
+    }
+    LOGIN_ERR = '';
+    LOCKED = false;
+    Store.writeUnlocked(true);
+    render();
+    /* Now that someone is in, do the authoritative sync — this is the path that
+       promises "sign in anywhere and your work is there". The boot pull runs
+       behind the wall as an optimisation, but a login must read AND write. */
+    syncOnLogin().catch(() => {});
+  },
+  /* Put the wall back up and forget who was logged in. Deliberately does NOT
+     wipe any stories — it is a lock, not a delete. */
+  lockApp(){
+    if(DRAFT){ try{ saveDraft(); }catch(e){} }
+    SESSION = null; Store.writeSession(null);
+    Store.writeUnlocked(false);
+    LOCKED = true; LOGIN_ERR = '';
+    VIEW = { name:'profiles', postId:null, kidId:null };
+    loginSyncPromise = null;      /* a later login must sync afresh */
+    render();
   },
 
   /* ---- gate ---- */
@@ -1792,6 +1908,12 @@ document.addEventListener('change', ev => {
 });
 
 document.addEventListener('keydown', ev => {
+  /* The login wall owns Enter while it is up. A form that needs a mouse is a
+     form a child cannot use on a tablet. */
+  if(LOCKED){
+    if(ev.key === 'Enter'){ ev.preventDefault(); ACTIONS.loginTry(); }
+    return;
+  }
   if(ev.key === 'Enter' && GATE.show && document.activeElement && document.activeElement.id === 'gIn'){
     ev.preventDefault(); ACTIONS.gateOk();
   }
@@ -1822,6 +1944,11 @@ function boot(){
   }
   const s = Store.readSession();
   if(s && (s.kidId || s.grownUp)) SESSION = s; else SESSION = null;
+  /* The wall goes up unless this device has been signed in before. Both must
+     still hold: a stale unlock flag with no session just means "show the
+     picker", not "show the password". */
+  LOCKED = !Store.readUnlocked();
+  LOGIN_ERR = '';
   render();
 }
 
@@ -1855,6 +1982,9 @@ if(typeof window !== 'undefined'){
     repaint, readSheetWithRetry, cloudStatusLine,
     runDoctor, ACTIONS, BUILD, STATUS, PIKMIN,
     setSession: s => { SESSION = s; }, getSession: () => SESSION,
+    /* the login wall */
+    viewLogin, isLocked: () => LOCKED, setLocked: v => { LOCKED = !!v; },
+    getLoginErr: () => LOGIN_ERR, FAMILY_PW_HASHES,
     testHooks: { queuePictureUpload, uploadPicture, shrinkImage }
   };
 }
