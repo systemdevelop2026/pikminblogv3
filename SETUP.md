@@ -118,7 +118,7 @@ Paste the folder id from step 1b between the quotes.
 You want to see all of this:
 
 ```
-App build: v3.1.0
+App build: v3.1.1
 Sheet URL: https://script.google.com/macros/s/…/exec
 Drive folder: 1AbC...xyz
 Stories on this device: 0
@@ -189,6 +189,18 @@ const DEFAULT_PIN = '489487';
 
 This gates the **Grown-ups** screen only (approvals, limits, the Sheet
 connection). It is separate from the family password that opens the app.
+
+**The PIN is shipped, not per-device.** Changing `DEFAULT_PIN` updates every
+device on its next load, so you do not have to visit each one. If you are
+replacing a PIN you shipped earlier, add the old one to `RETIRED_PINS` as well —
+otherwise devices that already saved it will keep using it:
+
+```js
+const RETIRED_PINS = ['123456'];
+```
+
+Any PIN listed there is replaced by `DEFAULT_PIN` on sight. A PIN a grown-up set
+by hand is never touched.
 
 ### Asking for approval
 
@@ -306,6 +318,13 @@ somehow got stuck.
 7. **Asked for a password again on a device that was signed in**
    → that is what **Sign out** does. It is not a fault. Type the password again.
 
+8. **Changed the PIN but a device still wants the old one**
+   → the device had the old PIN saved. This build migrates retired PINs
+   automatically, so first try reloading the page. If it still refuses, add the
+   old PIN to `RETIRED_PINS` in `index.html` (see "The grown-up PIN"). In an
+   emergency, **Grown-ups → Start over on this device** clears the device and it
+   will take the shipped PIN on the next load.
+
 ---
 
 ## What is in this folder
@@ -316,7 +335,7 @@ somehow got stuck.
 | `google-apps-script.gs` | The backend. Paste into Apps Script. |
 | `SETUP.html` | This guide, as a web page. |
 | `README.md` | How it works inside, for whoever maintains it. |
-| `_test.js` | 214 checks. For a developer. `node _test.js` |
+| `_test.js` | 222 checks. For a developer. `node _test.js` |
 | `_uitest.js` | Drives the real UI in a browser. For a developer. |
 | `_livetest.js` | End-to-end against the live Sheet and Drive. For a developer. |
 

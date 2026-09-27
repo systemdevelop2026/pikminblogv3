@@ -76,6 +76,47 @@ a reload keeps the door open. **Sign out (🚪) in the top bar clears it** and p
 the wall back, and that persists across reloads too. `wipeDevice()` removes it as
 well. The Enter key is owned by the sign-in card while locked.
 
+### The PIN is shipped config, not a device preference
+
+This was a real bug, and worth understanding before touching `normalizeSettings`.
+
+Settings are saved per device, and the old rule was *"a saved `pin` always wins"*.
+So changing `DEFAULT_PIN` did nothing on any device that had already run the app —
+that device kept the old PIN **forever**, and only a brand-new one picked up the
+new value. The constant was correct in the file while the running app was wrong,
+which is exactly why a test that only checks the constant stayed green.
+
+The fix has two halves:
+
+```js
+const RETIRED_PINS = ['123456'];          /* superseded shippers */
+pin: RETIRED_PINS.indexOf(pin) >= 0 ? DEFAULT_PIN : pin,
+```
+
+and `Store.readSettings()`, which writes the normalized value back when
+normalization changed something — so the migration happens once, not on every
+load. Only PINs that were *shipped* are migrated; a PIN a grown-up set by hand is
+left alone. **`123456` is deliberately still in the file** as a list entry — it is
+the thing being retired, not a credential.
+
+**When you change `DEFAULT_PIN`, add the old value to `RETIRED_PINS`**, or every
+device that already saved it will ignore the change.
+
+### Testing this class of bug
+
+Every test ran on a **fresh browser profile**, where no stale PIN exists — so all
+of them passed while the bug was live. Assertions that only grep the source for a
+constant cannot catch it. The suite now drives the behaviour instead:
+
+- `normalizeSettings({pin:'123456'}).pin === '489487'`
+- `normalizeSettings({pin:'my-own-pin'}).pin === 'my-own-pin'` (not clobbered)
+- `_uitest.js` **seeds the old saved blob into `localStorage`**, reloads, and
+  checks both the effective and the written-back value, then confirms `123456` is
+  refused at the gate.
+
+**If a feature can be defeated by previously-saved data, a clean-profile test will
+never see it.** Seed the old state deliberately.
+
 ---
 
 ## The shape of the app
@@ -309,7 +350,7 @@ tab, and reports no `lastBackup`. `runDoctor()` uses exactly this.
 ## Testing
 
 ```bash
-node _test.js        # 214 assertions, no dependencies
+node _test.js        # 222 assertions, no dependencies
 ```
 
 Block `[0]` of the suite is the login wall: it signs in first, so every later
@@ -369,6 +410,7 @@ copies are in circulation.
 | `DEFAULT_BACKEND`                  | app     | Shipped Sheet URL, token, Drive folder. All set.     |
 | `FAMILY_PW_HASHES`                 | app     | Accepted family passwords, as hashes.                |
 | `DEFAULT_PIN`                      | app     | Shipped grown-up PIN. `489487`.                      |
+| `RETIRED_PINS`                     | app     | Superseded PINs, replaced by `DEFAULT_PIN` on sight. |
 | `KEY_UNLOCKED`                     | app     | Remembers "this device has signed in" across reloads. |
 | `PIC_MAX_EDGE`                     | app     | Longest edge a picture is shrunk to.                 |
 | `AUTOSAVE_MS` / `PUSH_DEBOUNCE_MS` | app     | 800 / 1600 ms.                                       |

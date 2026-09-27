@@ -277,7 +277,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.0';
+const BUILD = 'v3.1.1';
 
 const KEY_DB       = 'pikminv3.db';
 const KEY_SETTINGS = 'pikminv3.settings';
@@ -344,7 +344,14 @@ const Store = {
   readSettings(){
     try{
       const raw = localStorage.getItem(KEY_SETTINGS);
-      return normalizeSettings(raw ? JSON.parse(raw) : null);
+      const parsed = raw ? JSON.parse(raw) : null;
+      const s = normalizeSettings(parsed);
+      /* If normalization changed anything (a retired PIN, a missing field),
+         write it straight back, so the migration happens once and not on every
+         load. Failure here is harmless — the in-memory value is already right. */
+      try{ if(raw && JSON.stringify(parsed) !== JSON.stringify(s)) localStorage.setItem(KEY_SETTINGS, JSON.stringify(s)); }
+      catch(e){}
+      return s;
     }catch(e){ return normalizeSettings(null); }
   },
   writeSettings(s){
@@ -391,18 +398,27 @@ const Store = {
 
 function freshDB(){ return { kids:[], posts:[], deleted:[] }; }
 
+/* Settings are saved on the device, and a saved PIN always won — so changing
+   DEFAULT_PIN did nothing on a device that had already run the app: it kept the
+   old value forever, and only a brand-new device picked the new one up.
+   The PIN is shipped configuration, not a per-device preference, so the old
+   value is migrated once and the shipped one wins from then on. Only this exact
+   retired value is touched; any other PIN a grown-up set is left alone. */
+const RETIRED_PINS = ['123456'];
+
 /* Every settings object is built here, so nothing downstream can meet a
    half-formed one. Missing pieces are filled from defaults. */
 function normalizeSettings(s){
   const d = DEFAULT_BACKEND;
   const src = s && typeof s === 'object' ? s : {};
   const cloud = src.cloud && typeof src.cloud === 'object' ? src.cloud : {};
+  const pin = typeof src.pin === 'string' ? src.pin : DEFAULT_PIN;
   return {
     requireApproval: src.requireApproval !== false,
     wordLimit:       Number(src.wordLimit) > 0 ? Number(src.wordLimit) : MAX_WORDS_DEFAULT,
     grownUpName:     typeof src.grownUpName === 'string' && src.grownUpName.trim()
                        ? src.grownUpName.trim() : 'Grown-up',
-    pin:             typeof src.pin === 'string' ? src.pin : DEFAULT_PIN,
+    pin:             RETIRED_PINS.indexOf(pin) >= 0 ? DEFAULT_PIN : pin,
     cloud: {
       url:       typeof cloud.url      === 'string' ? cloud.url      : d.url,
       token:     typeof cloud.token    === 'string' ? cloud.token    : d.token,

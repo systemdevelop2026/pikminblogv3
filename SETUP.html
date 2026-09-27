@@ -160,7 +160,7 @@ var DRIVE_FOLDER_ID = '';
 <p>You want to see all of this:</p>
 
 <pre>
-App build: v3.1.0
+App build: v3.1.1
 Sheet URL: https://script.google.com/macros/s/…/exec
 Drive folder: 1AbC...xyz
 Stories on this device: 0
@@ -229,6 +229,14 @@ const DEFAULT_PIN = '489487';
 </pre>
 
 <p>This gates the <b>Grown-ups</b> screen only (approvals, limits, the Sheet connection). It is separate from the family password that opens the app.</p>
+
+<p><b>The PIN is shipped, not per-device.</b> Changing <code>DEFAULT_PIN</code> updates every device on its next load, so you do not have to visit each one. If you are replacing a PIN you shipped earlier, add the old one to <code>RETIRED_PINS</code> as well — otherwise devices that already saved it will keep using it:</p>
+
+<pre>
+const RETIRED_PINS = ['123456'];
+</pre>
+
+<p>Any PIN listed there is replaced by <code>DEFAULT_PIN</code> on sight. A PIN a grown-up set by hand is never touched.</p>
 
 <h3>Asking for approval</h3>
 
@@ -353,6 +361,15 @@ const DEFAULT_PIN = '489487';
 <li>→ that is what <b>Sign out</b> does. It is not a fault. Type the password again.</li>
 </ul>
 
+<ul>
+<li><b>Changed the PIN but a device still wants the old one</b></li>
+<li>→ the device had the old PIN saved. This build migrates retired PINs</li>
+<li>automatically, so first try reloading the page. If it still refuses, add the</li>
+<li>old PIN to <code>RETIRED_PINS</code> in <code>index.html</code> (see "The grown-up PIN"). In an</li>
+<li>emergency, <b>Grown-ups → Start over on this device</b> clears the device and it</li>
+<li>will take the shipped PIN on the next load.</li>
+</ul>
+
 <hr>
 
 <h2>What is in this folder</h2>
@@ -363,7 +380,7 @@ const DEFAULT_PIN = '489487';
 <tr><td><code>google-apps-script.gs</code></td><td>The backend. Paste into Apps Script.</td></tr>
 <tr><td><code>SETUP.html</code></td><td>This guide, as a web page.</td></tr>
 <tr><td><code>README.md</code></td><td>How it works inside, for whoever maintains it.</td></tr>
-<tr><td><code>_test.js</code></td><td>214 checks. For a developer. <code>node _test.js</code></td></tr>
+<tr><td><code>_test.js</code></td><td>222 checks. For a developer. <code>node _test.js</code></td></tr>
 <tr><td><code>_uitest.js</code></td><td>Drives the real UI in a browser. For a developer.</td></tr>
 <tr><td><code>_livetest.js</code></td><td>End-to-end against the live Sheet and Drive. For a developer.</td></tr>
 </table>

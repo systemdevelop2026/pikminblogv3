@@ -48,6 +48,10 @@ for `FAMILY_PW_HASHES`:
   (search for `ngkimhooi`)
 - **Grown-up PIN** — `489487` (search for `DEFAULT_PIN`)
 
+If you change the PIN, also add the old value to `RETIRED_PINS` (just below it) —
+otherwise devices that already saved the old PIN will keep using it. See the
+"Fixed in this build" note below.
+
 Each kid gets their own Pikmin colour and their own PIN, so stories stay separate.
 
 > **The sign-in card is a door, not a vault.** The passwords are stored only as
@@ -66,7 +70,7 @@ in the top bar. **🔒 Lock** returns to the Pikmin picker without signing out.
 This exact `index.html` was loaded in a real browser over `http://` (the way GitHub
 Pages serves it) and over `file://`:
 
-- build `v3.1.0`
+- build `v3.1.1`
 - connected: **true**
 - pulled the live stories from the Sheet
 - cloud state: `Up to date — 7 stories.`
@@ -74,8 +78,10 @@ Pages serves it) and over `file://`:
 - the status strip settles on its own in ~2–4s, no tapping needed
 - a fresh device lands on the sign-in card; a wrong password is refused; the
   right one signs in; signing out puts the wall back up
+- a device that still had the **old** PIN saved migrates to `489487`, and the
+  old PIN no longer opens the grown-ups screen
 
-Unit suite: **214 passed, 0 failed**. Real-browser journey: **all 20 steps pass**.
+Unit suite: **222 passed, 0 failed**. Real-browser journey: **all 23 steps pass**.
 
 ### Fixed in this build — the "stuck on Reading the Sheet…" problem
 
@@ -91,3 +97,18 @@ Now: the status line repaints itself, the app **retries** a slow Google, shows
 *"Still reading the Sheet… (2 of 3)"* while it waits, and if it truly cannot
 reach the Sheet it says so plainly and lets you **tap the message to try again**.
 It can never spin forever.
+
+### Fixed in v3.1.1 — the grown-up PIN that would not change
+
+Changing `DEFAULT_PIN` did nothing on any device that had already opened the
+app. Settings are saved per device and the saved PIN won, so that device kept
+the old PIN forever — only a brand-new or wiped device picked up the new one.
+The constant was right in the file while the running app was wrong.
+
+Now the PIN is treated as **shipped configuration**: the retired value `123456`
+is listed in `RETIRED_PINS` and replaced by `DEFAULT_PIN` on sight, and the
+migrated value is written back so it happens once. A PIN a grown-up set by hand
+is never touched.
+
+**Consequence for you:** the PIN now applies to every device on its next reload.
+If you change it again, add the old value to `RETIRED_PINS` too.
