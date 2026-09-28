@@ -70,7 +70,7 @@ in the top bar. **🔒 Lock** returns to the Pikmin picker without signing out.
 This exact `index.html` was loaded in a real browser over `http://` (the way GitHub
 Pages serves it) and over `file://`:
 
-- build `v3.1.4`
+- build `v3.1.5`
 - connected: **true**
 - pulled the live stories from the Sheet
 - cloud state: `Up to date — 7 stories.`
@@ -126,3 +126,27 @@ palette is unchanged — those are still flat ink dots, on purpose.
 Also fixed: the browser test drove the **live** Sheet, so a background sync
 could land mid-test and wipe the fixture. It now blocks that host, which makes
 the suite deterministic and stops it writing test stories into the real Sheet.
+
+### Fixed in v3.1.5 — the sync error that was not a sync error
+
+A user reported "Sync problem: The Sheet is taking a long time to answer."
+The Sheet was fine. The endpoint answered in 3.6s and the app synced normally.
+
+The watchdog that produces that message was a single 75-second timer armed when
+the **page** loaded, not when a read started. So signing in around the 73-second
+mark meant the watchdog fired **two seconds into a perfectly healthy read** and
+declared failure. Reproduced exactly: error at +75348ms, data at +79404ms. And a
+read started after 75s had no watchdog at all, because the timer had already
+fired and done nothing.
+
+It also contradicted the retry policy: three attempts can legitimately run ~79s,
+so a 75s watchdog was guaranteed to cry wolf on any slow connection.
+
+Now the watchdog is armed when an operation starts and cleared when it ends, and
+its window is **derived** from the retry budget (≈91s) rather than hardcoded, so
+the two can never disagree again.
+
+Verified both ways: a healthy read starting late no longer trips it, and a
+genuinely wedged read still ends in a tappable error rather than a dead spinner.
+
+Unit suite: **222 passed, 0 failed**. Real-browser journey: **all 21 steps pass**.

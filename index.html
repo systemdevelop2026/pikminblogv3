@@ -338,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.4';
+const BUILD = 'v3.1.5';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -379,6 +379,30 @@ const AUTOSAVE_MS = 800;
 const PUSH_DEBOUNCE_MS = 1600;
 const PIC_MAX_EDGE = 1400;        /* drawings/photos are shrunk to this */
 const PIC_JPEG_Q = 0.82;
+
+/* ---- how long a Sheet call may take -------------------------------------
+   One attempt gets READ_TIMEOUT_MS. A healthy read answers in 3–6s; a cold
+   Apps Script deployment can take 20s+ to wake, which is what the retry is
+   for. After a timeout the deployment is definitely awake, so the next
+   attempt returns quickly. */
+const READ_TIMEOUT_MS  = 25000;
+const READ_ATTEMPTS    = 3;
+const READ_GAP_MS      = 1200;    /* base gap between attempts; widens each time */
+const WRITE_TIMEOUT_MS = 30000;
+
+/* The longest a read can legitimately take, gaps included. */
+function readBudgetMs(){
+  let total = READ_ATTEMPTS * READ_TIMEOUT_MS;
+  for(let i = 1; i < READ_ATTEMPTS; i++) total += READ_GAP_MS * i;
+  return total;
+}
+/* The watchdog must OUTLAST the whole retry budget. If it were shorter it
+   would report failure while a retry was still legitimately in flight — which
+   is exactly the bug this replaced. Derived, never guessed, so the two can
+   never drift apart again. */
+function watchdogMs(){
+  return Math.max(readBudgetMs(), WRITE_TIMEOUT_MS) + 12000;
+}
 
 
 /* ==========================================================================
@@ -748,16 +772,16 @@ function mergeSnapshot(mine, theirs){
    So: retry transient failures with a widening gap, and report the wait
    honestly rather than freezing on one word. */
 async function readSheetWithRetry(attempts){
-  const max = attempts || 3;
+  const max = attempts || READ_ATTEMPTS;
   let last = null;
   for(let i = 0; i < max; i++){
     if(i > 0) setCloudState('reading', 'Still reading the Sheet… (' + (i + 1) + ' of ' + max + ')');
     try{
-      return await jsonp('load', {}, 30000);
+      return await jsonp('load', {}, READ_TIMEOUT_MS);
     }catch(e){
       last = e;
       if(!e.transient) throw e;          /* a bad token will never fix itself */
-      if(i < max - 1) await new Promise(r => setTimeout(r, 1200 * (i + 1)));
+      if(i < max - 1) await new Promise(r => setTimeout(r, READ_GAP_MS * (i + 1)));
     }
   }
   throw last || new Error('The Sheet did not answer.');
@@ -773,8 +797,9 @@ async function pullFromSheet(opts){
   const wasSuppressed = suppressPush;
   suppressPush = true;
   setCloudState('reading','Reading the Sheet…');
+  armWatchdog();
   try{
-    const r = await readSheetWithRetry(3);
+    const r = await readSheetWithRetry(READ_ATTEMPTS);
     const remote = r.data || { kids:[], posts:[], deleted:[] };
     /* The Sheet is the sole source of truth. Replace DB entirely — no merge,
        no conflict resolution, no last-write-wins. The local copy is ephemeral. */
@@ -795,6 +820,9 @@ async function pullFromSheet(opts){
     setCloudState('error', e.message + tail);
     return { ok:false, error:e.message };
   }finally{
+    /* The operation is over, however it ended — disarm, or a later operation
+       would inherit this one's deadline. */
+    clearWatchdog();
     /* ALWAYS release, never restore a captured value. cloudPushSoon re-reads
        the grown-up's setting itself, so false is the only safe resting state. */
     if(!wasSuppressed) suppressPush = false;
@@ -806,11 +834,12 @@ async function pullFromSheet(opts){
 async function pushToSheet(){
   if(!cloudReady()) return { ok:false, skipped:'no Sheet set up' };
   setCloudState('sending','Sending…');
+  armWatchdog();
   try{
     const r = await postTo({
       action:'sync',
       data:{ kids:DB.kids, posts:DB.posts, deleted:DB.deleted }
-    }, 30000);
+    }, WRITE_TIMEOUT_MS);
     SET.cloud.lastSync  = Date.now();
     SET.cloud.lastError = null;
     /* Settings are not stored locally — no-op */
@@ -822,6 +851,8 @@ async function pushToSheet(){
     /* Settings are not stored locally — no-op */
     setCloudState('error', e.message);
     return { ok:false, error:e.message };
+  }finally{
+    clearWatchdog();
   }
 }
 
@@ -1519,10 +1550,12 @@ const ACTIONS = {
   lock(){ SESSION = null; VIEW.name='profiles'; render(); toast('Locked'); },
 
   /* The status strip invites a tap when a read fails, so the tap has to do
-     something. force:true bypasses pulledOnce, which is the whole point. */
+     something. force:true bypasses pulledOnce, which is the whole point.
+     pullFromSheet owns the strip state AND the watchdog — setting "reading"
+     here too would leave a spinner with no deadline behind it if the read
+     ever returned early. */
   retryRead(){
     if(!cloudReady()) return;
-    setCloudState('reading','Reading the Sheet…');
     pullFromSheet({ force:true })
       .then(r => { if(r && r.ok) toast('Read ' + ((DB.posts||[]).length) + ' stories','ok'); })
       .catch(() => {});
@@ -1954,15 +1987,36 @@ function boot(){
 
 boot();
 
-/* A watchdog, so the strip can never be left spinning forever. If a read is
-   still in flight well past every internal timeout, the page says so in plain
-   words instead of pretending to work. */
-setTimeout(() => {
-  if(CLOUD_STATE.status === 'reading' || CLOUD_STATE.status === 'sending'){
-    setCloudState('error', 'The Sheet is taking a long time to answer. '
-      + 'Please check your connection and tap to try again.');
-  }
-}, 75000);
+/* ---- the watchdog ---------------------------------------------------------
+   Armed when an operation STARTS and cleared when it ENDS, so it measures the
+   operation rather than the age of the page.
+
+   An earlier version armed a single 75s timer at page load. That had two
+   failure modes, both real:
+     - a read begun at t=73s was declared failed two seconds later, while it was
+       still running perfectly well (reproduced: error at +75348ms, data at
+       +79404ms);
+     - a read begun after t=75s had no backstop at all, because the timer had
+       already fired and done nothing.
+   It also contradicted the retry budget: 3 attempts could legitimately run for
+   ~79s, so a 75s watchdog was guaranteed to cry wolf on a slow connection.
+
+   Now the window is derived from the retry policy (watchdogMs()), so it can
+   only fire when something is genuinely wedged. */
+let watchdogTimer = null;
+function armWatchdog(){
+  clearWatchdog();
+  watchdogTimer = setTimeout(() => {
+    watchdogTimer = null;
+    if(CLOUD_STATE.status === 'reading' || CLOUD_STATE.status === 'sending'){
+      setCloudState('error', 'The Sheet is taking a long time to answer. '
+        + 'Please check your connection and tap to try again.');
+    }
+  }, watchdogMs());
+}
+function clearWatchdog(){
+  if(watchdogTimer){ clearTimeout(watchdogTimer); watchdogTimer = null; }
+}
 
 /* ---- exposed for tests only -------------------------------------------- */
 if(typeof window !== 'undefined'){
@@ -1980,6 +2034,10 @@ if(typeof window !== 'undefined'){
     setSuppressed: v => { suppressPush = v; },
     setCloudState: (s,m) => setCloudState(s,m), getCloudState: () => CLOUD_STATE,
     repaint, readSheetWithRetry, cloudStatusLine,
+    /* the watchdog: armed per operation, derived from the retry budget */
+    armWatchdog, clearWatchdog, watchdogMs, readBudgetMs,
+    hasWatchdog: () => watchdogTimer !== null,
+    READ_TIMEOUT_MS, READ_ATTEMPTS, READ_GAP_MS, WRITE_TIMEOUT_MS,
     runDoctor, ACTIONS, BUILD, STATUS, PIKMIN,
     setSession: s => { SESSION = s; }, getSession: () => SESSION,
     /* the login wall */

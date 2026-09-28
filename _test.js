@@ -259,7 +259,7 @@ ok(!T.isLocked(), 'signed back in for the remaining blocks');
 
 /* ===== 1. basics ======================================================== */
 console.log('\n[1] basics');
-eq(T.BUILD, 'v3.1.4', 'build string is v3.1.4');
+eq(T.BUILD, 'v3.1.5', 'build string is v3.1.5');
 eq(T.wordCount('one two  three\nfour'), 4, 'word counting ignores extra whitespace');
 eq(T.wordCount(''), 0, 'empty text is zero words');
 ok(T.hashPw('abc') !== T.hashPw('abd'), 'different passwords hash differently');
@@ -497,7 +497,7 @@ const docTxt = await (async () => {
   jsonpReply = real;
   return txt;
 })();
-ok(docTxt.indexOf('v3.1.4') >= 0, 'the doctor names the build');
+ok(docTxt.indexOf('v3.1.5') >= 0, 'the doctor names the build');
 ok(docTxt.indexOf('last backup') >= 0, 'a current deployment reports lastBackup');
 ok(docTxt.indexOf('this deployment is OLD') < 0, 'and is NOT called old');
 ok(docTxt.indexOf('stories on the Sheet: 0') >= 0, 'the doctor reads the actual Sheet counts');
@@ -945,6 +945,55 @@ T.setCloudState('reading','Reading the Sheet…');
 ok(/pbspin/.test(T.cloudStatusLine()), 'a reading strip carries a spinner');
 T.setCloudState('ok','Up to date — 1 story.');
 ok(!/pbspin/.test(T.cloudStatusLine()), 'a settled strip carries no spinner');
+
+/* -- 12f-bis. the watchdog measures the OPERATION, not the page's age -----
+   This is the regression guard for a real production bug: the watchdog used to
+   be one 75s timer armed at page load. A read begun at t=73s was therefore
+   declared failed two seconds later while it was still running fine, and a read
+   begun after t=75s had no backstop at all. It also contradicted the retry
+   budget, so it cried wolf on any slow connection. */
+
+/* The window must OUTLAST the whole retry budget — otherwise the watchdog
+   fires while a retry is legitimately still in flight. That contradiction was
+   the bug, so assert the relationship, not a magic number. */
+ok(T.watchdogMs() > T.readBudgetMs(),
+   'the watchdog outlasts the full retry budget (' + T.watchdogMs() + 'ms > '
+   + T.readBudgetMs() + 'ms)');
+eq(T.readBudgetMs(),
+   T.READ_ATTEMPTS * T.READ_TIMEOUT_MS + T.READ_GAP_MS * 1 + T.READ_GAP_MS * 2,
+   'the budget is the attempts plus the widening gaps, derived not guessed');
+
+/* Armed only while an operation runs. */
+T.clearWatchdog();
+ok(!T.hasWatchdog(), 'no watchdog is armed when nothing is in flight');
+
+/* A read arms it… */
+T.setPulledOnce(false);
+jsonpPlan = null; jsonpDelay = 0;
+jsonpReply = { ok:true, data:blank() };
+await T.pullFromSheet({ force:true });
+ok(!T.hasWatchdog(), 'a finished read leaves no watchdog armed');
+
+/* …and a FAILED read must also disarm, or a later operation inherits a
+   deadline that has nothing to do with it. */
+jsonpPlan = () => 'drop';
+T.setPulledOnce(false);
+await T.pullFromSheet({ force:true });
+ok(!T.hasWatchdog(), 'a failed read also disarms the watchdog');
+jsonpPlan = null;
+T.setPulledOnce(false);
+
+/* Arming twice must not stack timers — the second deadline is the only one. */
+T.armWatchdog(); T.armWatchdog();
+ok(T.hasWatchdog(), 'the watchdog is armed');
+T.clearWatchdog();
+ok(!T.hasWatchdog(), 'and cleared');
+
+/* A watchdog that fires while the strip is already settled must not overwrite
+   a success with a stale failure. */
+T.setCloudState('ok','Up to date — 1 story.');
+T.armWatchdog(); T.clearWatchdog();
+eq(T.getCloudState().status, 'ok', 'a settled strip is not disturbed by the watchdog');
 
 /* -- 12g. a repaint must not destroy an open drawing pad ------------------ */
 /* HONEST NOTE ON SCOPE: this sandbox keeps each selector's element separate,

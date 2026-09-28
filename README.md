@@ -276,6 +276,43 @@ Why: `text/plain` is a "simple" content type, so the browser skips the CORS
 preflight. And a POST reply *is* readable, because Apps Script sends  
 `Access-Control-Allow-Origin: *` on the redirect target.
 
+### The watchdog — armed per operation, never per page
+
+A read or write arms a deadline when it **starts** and clears it when it
+**ends**. If the strip is still saying "Reading…" when the deadline passes, it
+says so in plain words and becomes tappable.
+
+```js
+armWatchdog();          // when an operation starts
+try { … } finally { clearWatchdog(); }   // however it ends
+```
+
+**The window is derived, not chosen.** `watchdogMs()` returns the retry budget
+plus a margin:
+
+```js
+readBudgetMs() = READ_ATTEMPTS × READ_TIMEOUT_MS + the widening gaps  // ≈ 79s
+watchdogMs()   = max(readBudgetMs(), WRITE_TIMEOUT_MS) + 12s          // ≈ 91s
+```
+
+**This replaced a real bug.** The watchdog used to be a single 75-second timer
+armed at *page load*, which failed two ways:
+
+- A read begun at t=73s was declared failed **two seconds later**, while it was
+  running perfectly well. Reproduced: error at +75348ms, data at +79404ms. That
+  is the "Sync problem: The Sheet is taking a long time to answer" a user saw on
+  a connection that was working fine.
+- A read begun *after* t=75s had no backstop at all — the timer had already
+  fired and done nothing — so a genuinely wedged read would spin forever.
+
+It also contradicted the retry policy: three attempts can legitimately run ~79s,
+so a 75s watchdog was guaranteed to cry wolf on a slow connection. **If you
+change `READ_ATTEMPTS`, `READ_TIMEOUT_MS` or `READ_GAP_MS`, the watchdog follows
+automatically** — that is the point of deriving it. Never hardcode it again.
+
+Two failure modes have explicit tests: a healthy read must never trip it, and a
+wedged read must always end in a tappable error rather than a dead spinner.
+
 ### `mergeSnapshot(mine, theirs)` — a version clock, not last-write-wins
 
 The rules, all four of which have tests:
@@ -328,6 +365,10 @@ Two rules:
 
 - `scheduleSave()` — `AUTOSAVE_MS` (800 ms). One write per burst of typing.
 - `pushSoon()` — `PUSH_DEBOUNCE_MS` (1600 ms). One upload per burst of edits.
+
+Network deadlines are separate and live with the constants: `READ_TIMEOUT_MS`
+(25 s per attempt), `READ_ATTEMPTS` (3), `READ_GAP_MS` (1200 ms, widening), and
+`WRITE_TIMEOUT_MS` (30 s). The watchdog is derived from these — see above.
 
 Tests assert that work was **scheduled** (`hasPendingPush()`), not that it  
 happened, so they stay fast and deterministic.
@@ -396,7 +437,7 @@ tab, and reports no `lastBackup`. `runDoctor()` uses exactly this.
 ## Testing
 
 ```bash
-node _test.js        # 214 assertions, no dependencies
+node _test.js        # 222 assertions, no dependencies
 ```
 
 Block `[0]` of the suite is the login wall: it signs in first, so every later
@@ -468,6 +509,9 @@ copies are in circulation.
 | `KEY_SETTINGS` / `KEY_SESSION`     | app     | **Removed.** Nothing stored locally.                 |
 | `PIC_MAX_EDGE`                     | app     | Longest edge a picture is shrunk to.                 |
 | `AUTOSAVE_MS` / `PUSH_DEBOUNCE_MS` | app     | 800 / 1600 ms.                                       |
+| `READ_TIMEOUT_MS` / `READ_ATTEMPTS` | app    | 25 s per attempt / 3 attempts.                       |
+| `READ_GAP_MS` / `WRITE_TIMEOUT_MS` | app     | 1200 ms widening gap / 30 s.                         |
+| `watchdogMs()`                     | app     | Derived from the above — never hardcode it.          |
 | `SECRET`                           | backend | Shared token. Must match the app's.                  |
 | `DRIVE_FOLDER_ID`                  | backend | Fallback picture folder (may be empty — see below).  |
 | `MAX_CELL` / `MAX_IMAGE_B64`       | backend | 49,000 chars / ~15 MB.                               |

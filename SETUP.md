@@ -118,7 +118,7 @@ Paste the folder id from step 1b between the quotes.
 You want to see all of this:
 
 ```
-App build: v3.1.4
+App build: v3.1.5
 Sheet URL: https://script.google.com/macros/s/…/exec
 Drive folder: 1AbC...xyz
 Stories on this device: 0
@@ -335,7 +335,7 @@ somehow got stuck.
 | `google-apps-script.gs` | The backend. Paste into Apps Script. |
 | `SETUP.html` | This guide, as a web page. |
 | `README.md` | How it works inside, for whoever maintains it. |
-| `_test.js` | 214 checks. For a developer. `node _test.js` |
+| `_test.js` | 222 checks. For a developer. `node _test.js` |
 | `_uitest.js` | Drives the real UI in a browser. For a developer. |
 | `_livetest.js` | End-to-end against the live Sheet and Drive. For a developer. |
 
