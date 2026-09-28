@@ -118,7 +118,7 @@ Paste the folder id from step 1b between the quotes.
 You want to see all of this:
 
 ```
-App build: v3.1.2
+App build: v3.1.4
 Sheet URL: https://script.google.com/macros/s/…/exec
 Drive folder: 1AbC...xyz
 Stories on this device: 0

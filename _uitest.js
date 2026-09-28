@@ -1,4 +1,10 @@
-/* Drive the v3 app through the real UI, as a child then a grown-up. */
+/* Drive the v3 app through the real UI, as a child then a grown-up.
+   NOTE: this drives the LIVE Sheet URL baked into the app. We block that host
+   outright — otherwise a background pull lands mid-test, replaces the in-memory
+   DB (there is no localStorage to fall back on), and the fixture vanishes. It
+   also means the suite can never write test stories into the real family Sheet.
+   The app degrades politely offline: it says it cannot reach the Sheet and
+   carries on, which is exactly what we want to exercise here. */
 const { chromium } = require('playwright-core');
 const APP = 'file:///C:/Users/PC/Desktop/pikmin-new/index.html';
 
@@ -9,7 +15,19 @@ const APP = 'file:///C:/Users/PC/Desktop/pikmin-new/index.html';
   const p = await ctx.newPage();
   const errs = [];
   p.on('pageerror', e => errs.push('PAGEERROR: ' + e.message));
-  p.on('console', m => { if (m.type() === 'error') errs.push('CONSOLE: ' + m.text().slice(0,160)); });
+  /* The blocked Sheet calls log as failed resources. That is us, by design —
+     not an app error — so keep it out of the report and let a real one stand out. */
+  const isBlockedSheetNoise = t => /ERR_FAILED|ERR_BLOCKED|script\.google\.com/.test(t);
+  p.on('console', m => {
+    if(m.type() !== 'error') return;
+    const t = m.text();
+    if(isBlockedSheetNoise(t)) return;
+    errs.push('CONSOLE: ' + t.slice(0,160));
+  });
+
+  /* Cut the app off from the real Sheet. Everything else still renders. */
+  await p.route('**://script.google.com/**', route => route.abort());
+  await p.route('**://*.googleusercontent.com/**', route => route.abort());
 
   await p.goto(APP, { waitUntil:'load' });
   await p.waitForTimeout(600);

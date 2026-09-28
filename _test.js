@@ -259,7 +259,7 @@ ok(!T.isLocked(), 'signed back in for the remaining blocks');
 
 /* ===== 1. basics ======================================================== */
 console.log('\n[1] basics');
-eq(T.BUILD, 'v3.1.2', 'build string is v3.1.2');
+eq(T.BUILD, 'v3.1.4', 'build string is v3.1.4');
 eq(T.wordCount('one two  three\nfour'), 4, 'word counting ignores extra whitespace');
 eq(T.wordCount(''), 0, 'empty text is zero words');
 ok(T.hashPw('abc') !== T.hashPw('abd'), 'different passwords hash differently');
@@ -497,7 +497,7 @@ const docTxt = await (async () => {
   jsonpReply = real;
   return txt;
 })();
-ok(docTxt.indexOf('v3.1.2') >= 0, 'the doctor names the build');
+ok(docTxt.indexOf('v3.1.4') >= 0, 'the doctor names the build');
 ok(docTxt.indexOf('last backup') >= 0, 'a current deployment reports lastBackup');
 ok(docTxt.indexOf('this deployment is OLD') < 0, 'and is NOT called old');
 ok(docTxt.indexOf('stories on the Sheet: 0') >= 0, 'the doctor reads the actual Sheet counts');

@@ -156,6 +156,51 @@ object by hand.** Every field the app reads is guaranteed present, because this
 one function fills the gaps. Skipping it is how "cannot read property of  
 undefined" bugs are born.
 
+### `avatarHTML()` and the `.pik` component
+
+Every Pikmin on screen — kid cards, story rows, the picker, the swatches, the
+top bar — comes from one builder:
+
+```js
+avatarHTML(pikminId, 'sm' | 'md' | 'lg')
+```
+
+It returns a `<span class="pik pik-lg">` carrying the two colours as custom
+properties, plus an `<i>` for the eyes and stalk:
+
+```js
+'<span class="pik pik-lg" style="--body:#4A90D9;--leafc:#3A72AD"><i></i></span>'
+```
+
+The character is drawn entirely in CSS:
+
+| Piece | Element | Notes |
+|---|---|---|
+| body | `.pik::before` | `--body`; rounded, inset shading for a 3D look |
+| leaf | `.pik::after` | `--leafc`; rotated, sits above the body |
+| stalk | `.pik > i::before` | `--leafc` darkened with `filter:brightness(.82)` |
+| eyes | `.pik > i::after` | two radial-gradient dots |
+
+**The element is taller than the body, on purpose.** `--s` is the body diameter;
+the box is `--s × 1.42` so the leaf has headroom *inside* the element. An earlier
+version drew the leaf *outside* the box, and every card clipped it — the leaf
+was cut off flat at the top of `.kidcard`, which looked broken. Sizing the box to
+include the leaf means **no container can clip it and no call site needs a
+wrapper.** If you change the leaf's size or position, keep it within the box.
+
+To change a Pikmin's colour, edit `PIKMIN` — not the CSS:
+
+```js
+const PIKMIN = [
+  { id:'red', name:'Red', body:'#D64545', leaf:'#C0392B' }, …
+];
+```
+
+**Two different swatch styles, deliberately.** `.swatches-pik` holds real mini
+avatars (the Pikmin picker — a child chooses a character). Plain `.swatches`
+holds flat ink dots (the drawing palette — a child chooses a pen colour). They
+look similar and mean different things; don't merge them.
+
 ### `ACTIONS`
 
 One plain function per user action, all dispatched from one delegated  
@@ -369,13 +414,21 @@ cd "C:/Users/PC/.workbuddy-ai/binaries/node/workspace"
 NODE_PATH="$PWD/node_modules" node "<path>/_uitest.js"
 ```
 
-Run **both**. The Node suite cannot model CORS, rendering, or `localStorage`  
-across a reload. A real browser caught the null-session crash on the  
-Grown-ups tab that the Node suite passed straight through — because the  
-sandbox never visited that screen as a first-time user.
+Run **both**. The Node suite cannot model CORS or rendering. A real browser
+caught the null-session crash on the Grown-ups tab that the Node suite passed
+straight through — because the sandbox never visited that screen as a
+first-time user.
 
 ### Harness notes
 
+- **`_uitest.js` blocks the real Sheet.** It drives the live URL baked into the
+  app, so without `p.route(...abort())` a background pull lands mid-test,
+  replaces the in-memory DB — there is no local storage to fall back on — and
+  the fixture vanishes. That was a genuine intermittent failure, not noise: it
+  passed or failed depending on timing. Blocking the host also guarantees the
+  suite can never write test stories into the real family Sheet. The blocked
+  requests log as `ERR_FAILED`, so they are filtered out of the error report;
+  a real console error still surfaces.
 - **Real timers.** Faking `setTimeout` to `() => 0` means the JSONP timeout  
   never fires and an `await` on a network call never settles — the suite dies  
   silently with exit 0 and no summary. If the summary line is missing, the  

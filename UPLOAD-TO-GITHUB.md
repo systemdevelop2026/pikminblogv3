@@ -70,7 +70,7 @@ in the top bar. **🔒 Lock** returns to the Pikmin picker without signing out.
 This exact `index.html` was loaded in a real browser over `http://` (the way GitHub
 Pages serves it) and over `file://`:
 
-- build `v3.1.2`
+- build `v3.1.4`
 - connected: **true**
 - pulled the live stories from the Sheet
 - cloud state: `Up to date — 7 stories.`
@@ -111,3 +111,18 @@ is never touched.
 
 **Consequence for you:** the PIN now applies to every device on its next reload.
 If you change it again, add the old value to `RETIRED_PINS` too.
+
+### Nicer Pikmin icons (v3.1.4)
+
+The Pikmin characters were flat coloured circles with a stub on top — the stub
+read as a hat, not a sprout, and the cards clipped the top of it.
+
+Every Pikmin is now one reusable component (`avatarHTML()` + the `.pik` CSS)
+with a rounded body, inset shading, two eyes, a stalk and a proper leaf. The
+colour swatches in the "New Pikmin" screen show real mini Pikmin instead of
+plain dots, so a child picks the character rather than a colour. The drawing
+palette is unchanged — those are still flat ink dots, on purpose.
+
+Also fixed: the browser test drove the **live** Sheet, so a background sync
+could land mid-test and wipe the fixture. It now blocks that host, which makes
+the suite deterministic and stops it writing test stories into the real Sheet.

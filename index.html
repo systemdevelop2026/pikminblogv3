@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#3E5A2E">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%233E5A2E'/%3E%3Cpath d='M16 9c0 0-2 4 0 7 2-3 0-7 0-7z' fill='%23C9D96B'/%3E%3Ccircle cx='16' cy='20' r='5' fill='%23F4EEDD'/%3E%3Ccircle cx='14.4' cy='19' r='1.1' fill='%23271F17'/%3E%3Ccircle cx='17.6' cy='19' r='1.1' fill='%23271F17'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%233E5A2E'/%3E%3Cellipse cx='16' cy='22' rx='7' ry='6.5' fill='%23D64545'/%3E%3Cellipse cx='16' cy='9' rx='3.5' ry='5' fill='%23C0392B'/%3E%3Ccircle cx='13.5' cy='21' r='1.2' fill='%23271F17'/%3E%3Ccircle cx='18.5' cy='21' r='1.2' fill='%23271F17'/%3E%3C/svg%3E">
 <title>Pikmin Blog v3</title>
 <style>
 /* ============================================================
@@ -128,18 +128,61 @@ label.fld span{display:block;font-weight:800;font-size:.83rem;color:var(--ink-2)
   padding:30px 26px;margin:22px 0 24px;box-shadow:var(--shadow-sm);
 }
 
-/* ---------- pikmin avatars ---------- */
+/* ---------- pikmin avatars ----------
+   --s is the body diameter. The box is taller than the body so the leaf has
+   headroom INSIDE the element — that way no container can ever clip it, and
+   no call site needs a wrapper. The body is drawn as an inset pseudo-element
+   on ::before-free real estate: the span itself is the transparent box. */
 .pik{
-  display:inline-block;border-radius:50% 50% 46% 46%;
-  border:2.5px solid rgba(0,0,0,.13);position:relative;flex:none;
+  display:inline-block;position:relative;flex:none;
+  width:var(--s);height:calc(var(--s) * 1.42);
+  transition:transform .15s ease;
 }
-.pik::after{ /* the little stem/leaf */
-  content:"";position:absolute;left:50%;top:-30%;width:22%;height:34%;
-  transform:translateX(-50%);border-radius:40% 40% 0 0;background:currentColor;
+.pik:hover{transform:translateY(-2px)}
+/* the body */
+.pik::before{
+  content:"";position:absolute;left:0;bottom:0;
+  width:var(--s);height:var(--s);
+  border-radius:50% 50% 46% 46%;
+  border:2.5px solid rgba(0,0,0,.11);
+  background:var(--body);
+  box-shadow:
+    inset 0 -5px 10px rgba(0,0,0,.14),
+    inset 0 5px 10px rgba(255,255,255,.28),
+    0 2px 4px rgba(0,0,0,.08);
+  box-sizing:border-box;
 }
-.pik-sm{width:28px;height:28px}
-.pik-md{width:46px;height:46px}
-.pik-lg{width:76px;height:76px;border-width:3px}
+/* the leaf */
+.pik::after{
+  content:"";position:absolute;left:50%;top:2%;
+  width:calc(var(--s) * .36);height:calc(var(--s) * .34);
+  transform:translateX(-6%) rotate(16deg);
+  background:var(--leafc);
+  border-radius:60% 10% 60% 10%;
+  box-shadow:inset -1px -2px 4px rgba(0,0,0,.18);
+}
+/* the stalk + the eyes ride in one child element */
+.pik > i{position:absolute;inset:0;display:block;pointer-events:none}
+.pik > i::before{ /* stalk */
+  content:"";position:absolute;left:50%;top:20%;
+  width:calc(var(--s) * .13);height:calc(var(--s) * .26);
+  transform:translateX(-50%);
+  background:var(--leafc);
+  border-radius:3px;
+  filter:brightness(.82);
+}
+.pik > i::after{ /* eyes */
+  content:"";position:absolute;left:50%;bottom:calc(var(--s) * .36);
+  width:calc(var(--s) * .50);height:calc(var(--s) * .16);
+  transform:translateX(-50%);
+  background:
+    radial-gradient(circle at 25% 50%, #271F17 2.2px, transparent 2.6px),
+    radial-gradient(circle at 75% 50%, #271F17 2.2px, transparent 2.6px);
+}
+.pik-sm{--s:32px}
+.pik-md{--s:50px}
+.pik-lg{--s:80px}
+.pik-lg::before{border-width:3px}
 
 /* ---------- kid cards ---------- */
 .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(168px,1fr))}
@@ -148,7 +191,8 @@ label.fld span{display:block;font-weight:800;font-size:.83rem;color:var(--ink-2)
   padding:18px 14px;text-align:center;box-shadow:var(--shadow-sm);
   transition:transform .12s,box-shadow .12s,border-color .12s;position:relative;
 }
-.kidcard:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--leaf-3)}
+.kidcard:hover{transform:translateY(-4px);box-shadow:var(--shadow);border-color:var(--leaf-3)}
+.kidcard:hover .pik{transform:scale(1.12) translateY(-3px)}
 .kidcard .nm{font-weight:900;margin-top:9px;font-size:1.05rem}
 .kidcard .ct{color:var(--ink-3);font-size:.8rem;font-weight:700}
 .kidcard-dashed{
@@ -191,9 +235,25 @@ label.fld span{display:block;font-weight:800;font-size:.83rem;color:var(--ink-2)
 .canvas-box{background:#fff;border:2px solid var(--line);border-radius:var(--r);padding:9px;margin-top:12px}
 canvas.draw{width:100%;height:auto;display:block;border-radius:9px;touch-action:none;
   background:#fff;cursor:crosshair;border:1.5px dashed var(--line)}
-.swatches{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
-.sw{width:32px;height:32px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 0 0 1.5px var(--line)}
+.swatches{display:flex;gap:9px;flex-wrap:wrap;margin-top:9px;align-items:flex-end}
+/* the drawing palette: flat ink dots, one per pen colour */
+.sw{
+  width:32px;height:32px;border-radius:50%;
+  border:2.5px solid #fff;box-shadow:0 0 0 1.5px var(--line);
+  transition:transform .12s,box-shadow .12s;
+}
+.sw:hover{transform:scale(1.08)}
 .sw.on{box-shadow:0 0 0 3px var(--leaf);transform:scale(1.1)}
+/* the Pikmin picker: each swatch holds a real mini avatar instead */
+.swatches-pik{gap:8px}
+.swatches-pik .sw{
+  width:auto;height:auto;border-radius:12px;border:2px solid transparent;
+  background:#fff;padding:2px 3px 0;line-height:0;
+  transition:transform .12s,box-shadow .12s,background .12s;
+}
+.swatches-pik .sw:hover{transform:translateY(-2px);background:#F6FBEF}
+.swatches-pik .sw.on{box-shadow:0 0 0 2.5px var(--leaf);background:#F1F8E6}
+.swatches-pik .pik{--s:30px}
 
 /* ---------- pics strip ---------- */
 .pics{display:flex;gap:9px;flex-wrap:wrap;margin-top:11px}
@@ -278,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.2';
+const BUILD = 'v3.1.4';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -304,7 +364,7 @@ const PIKMIN = [
   { id:'yellow', name:'Yellow', body:'#F2C230', leaf:'#D6A21A' },
   { id:'blue',   name:'Blue',   body:'#4A90D9', leaf:'#3A72AD' },
   { id:'purple', name:'Purple', body:'#9B6BC4', leaf:'#7C519E' },
-  { id:'white',  name:'White',  body:'#F0EDE4', leaf:'#CFC9BA' },
+  { id:'white',  name:'White',  body:'#F0EDE4', leaf:'#B3AC96' },
   { id:'rock',   name:'Rock',   body:'#8A8577', leaf:'#6E6A5E' }
 ];
 
@@ -469,8 +529,10 @@ function postsOf(kidId){
 function avatarHTML(pik, size){
   const p = pikminOf(pik);
   const sz = size || 'md';
-  return '<span class="pik pik-' + sz + '" style="background:' + p.body +
-         ';color:' + p.leaf + '"></span>';
+  /* The body and leaf are separate pseudo-elements now, so the colours go in
+     as custom properties rather than as a background/colour pair. */
+  return '<span class="pik pik-' + sz + '" style="--body:' + p.body +
+         ';--leafc:' + p.leaf + '"><i></i></span>';
 }
 function statusBadge(st){
   const s = STATUS[st] || STATUS.draft;
@@ -1236,9 +1298,12 @@ function viewRead(){
 
 /* ---- 8e. new kid --------------------------------------------------------- */
 function viewNewKid(){
+  /* Each swatch is a real mini Pikmin, not a flat dot — a child picks the
+     character they like, and the chosen one is confirmed by the big preview
+     underneath. */
   const swatches = PIKMIN.map(p =>
-    '<button class="sw" data-act="pickPik" data-id="' + p.id + '" title="' + esc(p.name) + '" ' +
-    'style="background:' + p.body + '"></button>').join('');
+    '<button class="sw" data-act="pickPik" data-id="' + p.id + '" title="' + esc(p.name) +
+      '" aria-label="' + esc(p.name) + '">' + avatarHTML(p.id,'sm') + '</button>').join('');
   return topbar({back:true}) + '' +
   '<div class="wrap wrap-narrow">' +
     '<div class="panel mt">' +
@@ -1248,7 +1313,7 @@ function viewNewKid(){
         '<input class="input" id="nName" maxlength="20" placeholder="e.g. Kaixuen" ' +
           'value="' + esc(VIEW.newName || '') + '" autocomplete="off"></label>' +
       '<label class="fld"><span>Colour</span></label>' +
-      '<div class="swatches" id="nSw">' + swatches + '</div>' +
+      '<div class="swatches swatches-pik" id="nSw">' + swatches + '</div>' +
       '<div class="tc mt">' + avatarHTML(VIEW.newPik || 'red','lg') + '</div>' +
       '<hr class="sep">' +
       '<div class="row" style="gap:9px">' +
