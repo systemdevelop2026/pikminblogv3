@@ -338,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.7';
+const BUILD = 'v3.1.8';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -546,6 +546,14 @@ function toast(msg, kind){
 }
 function pikminOf(id){ return PIKMIN.find(p => p.id === id) || PIKMIN[0]; }
 function kidById(id){ return DB.kids.find(k => k.id === id) || null; }
+/* The Pikmin colour a kid should be drawn as. Tolerates a Sheet written by an
+   older backend, which named the field `avatar` — without this a family whose
+   Sheet still holds that column would keep seeing red until they saved once.
+   See the backend's readKids() for the other half of that bug. */
+function kidColour(kid){
+  if(!kid) return PIKMIN[0].id;
+  return kid.pikmin || kid.avatar || PIKMIN[0].id;
+}
 function postsOf(kidId){
   return DB.posts.filter(p => p.kidId === kidId)
     .sort((a,b) => (b.updatedAt||b.createdAt||0) - (a.updatedAt||a.createdAt||0));
@@ -1027,6 +1035,30 @@ async function runDoctor(){
    7. PICTURES — shrink, then send to Drive
    ========================================================================== */
 
+/* ---- resolve a picture to something an <img> can load --------------------
+   An attachment can be in one of three states, and all three must render:
+     - just drawn/attached, not yet uploaded → `src` holds an inline data URL
+     - uploaded                              → `src` is blanked, `driveId` and
+                                               `url` hold the Drive reference
+     - read back from the Sheet              → same as uploaded, and `thumb`
+                                               may be absent
+
+   This must be ONE function. Three separate call sites each remembered a
+   different subset of the fields, so a picture that survived one screen
+   vanished on another — the read view forgot `url` entirely, which is exactly
+   the state every uploaded picture is in. */
+function picUrl(att){
+  if(!att) return '';
+  if(att.thumb) return att.thumb;       /* local preview, fastest */
+  if(att.src)   return att.src;         /* not uploaded yet */
+  if(att.url)   return att.url;         /* Drive's own link */
+  /* Last resort: build a thumbnail straight from the file id. This works for
+     a file the signed-in user can see, and needs no extra API call. */
+  if(att.driveId) return 'https://drive.google.com/thumbnail?id=' + att.driveId + '&sz=w1000';
+  return '';
+}
+function hasPic(att){ return !!picUrl(att); }
+
 function shrinkImage(dataUrl){
   return new Promise(resolve => {
     const img = new Image();
@@ -1166,7 +1198,7 @@ function viewProfiles(){
     const n = postsOf(k.id).length;
     return '' +
     '<button class="kidcard" data-act="openKid" data-id="' + esc(k.id) + '">' +
-      avatarHTML(k.pikmin,'lg') +
+      avatarHTML(kidColour(k),'lg') +
       '<div class="nm">' + esc(k.name) + '</div>' +
       '<div class="ct">' + n + ' stor' + (n===1?'y':'ies') + '</div>' +
     '</button>';
@@ -1255,9 +1287,10 @@ function viewKid(){
   const posts = postsOf(kid.id);
 
   const list = posts.map(p => {
-    const pv = p.preview || (p.attachments && p.attachments[0])
+    const first = (p.attachments || []).find(hasPic);
+    const pv = (p.preview || first)
       ? '<div class="pic" style="width:56px;height:56px">' +
-        '<img src="' + esc(p.preview || p.attachments[0].thumb || p.attachments[0].src || '') + '" alt="">' +
+        '<img src="' + esc(p.preview || picUrl(first)) + '" alt="">' +
         '</div>' : '';
     const wc = wordCount(p.body);
     return '' +
@@ -1278,7 +1311,7 @@ function viewKid(){
   return topbar({back:true}) + '' +
   '<div class="wrap">' +
     '<div class="card-lift card row" style="gap:14px;margin-top:18px">' +
-      avatarHTML(kid.pikmin,'lg') +
+      avatarHTML(kidColour(kid),'lg') +
       '<div class="grow">' +
         '<h2>' + esc(kid.name) + '</h2>' +
         '<div class="muted small">' + posts.length + ' stor' + (posts.length===1?'y':'ies') + '</div>' +
@@ -1304,7 +1337,7 @@ function viewEditor(){
 
   const pics = (d.attachments||[]).map((a,i) =>
     '<div class="pic">' +
-      '<img src="' + esc(a.thumb || a.src || a.url || '') + '" alt="">' +
+      '<img src="' + esc(picUrl(a)) + '" alt="">' +
       '<span class="dot" style="background:' +
         (a.driveId ? 'var(--ok)' : 'var(--ink-3)') + '"></span>' +
       '<button class="x" data-act="delPic" data-i="' + i + '" title="Remove">✕</button>' +
@@ -1373,8 +1406,8 @@ function viewRead(){
   const body = esc(p.body).split(/\n{2,}/)
     .map(par => '<p style="margin:.7rem 0">' + par.replace(/\n/g,'<br>') + '</p>').join('');
 
-  const pics = (p.attachments||[]).map(a =>
-    '<img src="' + esc(a.thumb || a.src || a.url || '') + '" alt="" ' +
+  const pics = (p.attachments||[]).filter(hasPic).map(a =>
+    '<img src="' + esc(picUrl(a)) + '" alt="" ' +
     'style="max-width:100%;border-radius:14px;border:2px solid var(--line);margin:9px 0">'
   ).join('');
 
@@ -1382,7 +1415,7 @@ function viewRead(){
   '<div class="wrap wrap-narrow">' +
     '<div class="panel mt">' +
       '<div class="row" style="gap:12px">' +
-        avatarHTML(kid.pikmin,'md') +
+        avatarHTML(kidColour(kid),'md') +
         '<div class="grow">' +
           '<h2>' + esc(p.title || 'Untitled') + '</h2>' +
           '<div class="muted small">by ' + esc(kid.name) + ' · ' +
@@ -1958,7 +1991,7 @@ function renderEditorPics(){
   if(!DRAFT) return;
   const host = $('.pics');
   const html = (DRAFT.attachments||[]).map((a,i) =>
-    '<div class="pic"><img src="' + esc(a.thumb || a.src || a.url || '') + '" alt="">' +
+    '<div class="pic"><img src="' + esc(picUrl(a)) + '" alt="">' +
     '<span class="dot" style="background:' + (a.driveId ? 'var(--ok)' : 'var(--ink-3)') + '"></span>' +
     '<button class="x" data-act="delPic" data-i="' + i + '">✕</button></div>').join('');
   if(host) host.innerHTML = html;
@@ -2124,6 +2157,7 @@ if(typeof window !== 'undefined'){
     hasWatchdog: () => watchdogTimer !== null,
     READ_TIMEOUT_MS, READ_ATTEMPTS, READ_GAP_MS, WRITE_TIMEOUT_MS,
     runDoctor, ACTIONS, BUILD, STATUS, PIKMIN,
+    picUrl, hasPic, kidColour,
     setSession: s => { SESSION = s; }, getSession: () => SESSION,
     /* the login wall */
     viewLogin, isLocked: () => LOCKED, setLocked: v => { LOCKED = !!v; },
