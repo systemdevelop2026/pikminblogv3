@@ -338,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.2.0';
+const BUILD = 'v3.2.1';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -388,6 +388,15 @@ const PIC_JPEG_Q = 0.82;
    is ~5-7 KB of base64 each. The full picture stays in Drive. */
 const THUMB_MAX_EDGE = 240;
 const THUMB_JPEG_Q = 0.55;
+/* The hard ceilings. These must match google-apps-script.gs: a picture over
+   MAX_THUMB_CHARS is dropped by the backend, and an attachment list whose JSON
+   is over MAX_CELL_CHARS is dropped ENTIRELY. So the app must never send a
+   picture that breaks either one — that was the photo bug. */
+const MAX_THUMB_CHARS = 8000;
+const MAX_CELL_CHARS  = 49000;
+/* What we will let the full picture reached Drive as. Well under the backend's
+   ~15 MB guard, but generous enough that a normal photo is never refused. */
+const DRIVE_MAX_CHARS = 12000000;
 
 /* ---- how long a Sheet call may take -------------------------------------
    One attempt gets READ_TIMEOUT_MS. A healthy read answers in 3–6s; a cold
@@ -1083,6 +1092,7 @@ function hasPic(att){ return !!picUrl(att); }
 function resizeTo(dataUrl, maxEdge, quality){
   return new Promise(resolve => {
     const img = new Image();
+    const done = out => resolve(out);
     img.onload = () => {
       try{
         const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
@@ -1095,22 +1105,71 @@ function resizeTo(dataUrl, maxEdge, quality){
         g.drawImage(img, 0, 0, w, h);
         const out = cv.toDataURL('image/jpeg', quality);
         /* If the canvas gave us nothing usable, keep the original. */
-        resolve(/^data:image\//.test(out) ? out : dataUrl);
-      }catch(e){ resolve(dataUrl); }
+        done(/^data:image\//.test(out) ? out : dataUrl);
+      }catch(e){ done(dataUrl); }
     };
-    img.onerror = () => resolve(dataUrl);
+    /* The browser could not decode this file at all — a phone photo in a format
+       the browser will not open (HEIC), or one too big to load. Returning the
+       ORIGINAL here was the photo bug: a 300 KB picture came back unshrunk, blew
+       past the 8,000-char thumbnail limit AND the 49,000-char cell limit, and
+       the whole picture list was dropped. Say so instead, so the caller can
+       refuse it and tell the child, rather than silently losing the story's
+       pictures. */
+    img.onerror = () => done({ error:'undecodable' });
     img.src = dataUrl;
   });
 }
-function shrinkImage(dataUrl){ return resizeTo(dataUrl, PIC_MAX_EDGE, PIC_JPEG_Q); }
-function makeThumb(dataUrl){ return resizeTo(dataUrl, THUMB_MAX_EDGE, THUMB_JPEG_Q); }
+/* Resize, and guarantee the result is BOTH decodable and small enough to keep.
+   `maxChars` is the real contract with the Sheet: a picture over it would be
+   thrown away by the backend, so it is not a valid result. */
+const RESIZE_TRIES = [
+  { maxEdge: 1400, quality: 0.82 },
+  { maxEdge: 1024, quality: 0.72 },
+  { maxEdge:  720, quality: 0.62 },
+  { maxEdge:  480, quality: 0.55 }
+];
+async function resizeUnder(dataUrl, maxChars, tries){
+  for(const t of (tries || RESIZE_TRIES)){
+    const out = await resizeTo(dataUrl, t.maxEdge, t.quality);
+    if(out && out.error) return out;                       /* undecodable: stop, retrying cannot help */
+    if(out !== dataUrl && String(out).length <= maxChars) return out;
+  }
+  /* Could not get it under the limit by re-encoding. Try once more, hard. */
+  const last = await resizeTo(dataUrl, 320, 0.5);
+  if(last && last.error) return last;
+  if(String(last).length <= maxChars) return last;
+  return { error:'too-big' };
+}
+function shrinkImage(dataUrl, maxChars){
+  return resizeUnder(dataUrl, maxChars == null ? DRIVE_MAX_CHARS : maxChars);
+}
+function makeThumb(dataUrl, maxChars){
+  return resizeUnder(dataUrl, maxChars == null ? MAX_THUMB_CHARS : maxChars,
+    [{ maxEdge: THUMB_MAX_EDGE, quality: THUMB_JPEG_Q },
+     { maxEdge: 180, quality: 0.5 },
+     { maxEdge: 120, quality: 0.45 }]);
+}
 
 async function uploadPicture(att, ctx){
   if(!cloudReady())      throw new Error('No Sheet is set up, so pictures cannot be filed.');
   if(!driveFolderId())   throw new Error('No Drive folder is set. Paste a folder link in Settings.');
 
   const local = att.src || att.thumb;      /* the best copy we hold right now */
-  const small = await shrinkImage(local);
+
+  /* A tiny copy MUST exist before anything is filed. If we cannot produce one,
+     the attachment is not safe to store: the full-size data URL would overflow
+     the Sheet cell and drag every OTHER picture in the story down with it.
+     Refuse it plainly and keep the local copy, rather than lose the lot. */
+  const thumb = await makeThumb(local, MAX_THUMB_CHARS);
+  if(thumb && thumb.error)
+    throw new Error(thumb.error === 'undecodable'
+      ? 'That photo is in a format the browser cannot open. Please save it as a JPEG or PNG and try again.'
+      : 'That photo could not be made small enough to store. Please use a smaller picture.');
+
+  const small = await shrinkImage(local, DRIVE_MAX_CHARS);
+  if(small && small.error)
+    throw new Error('That photo is too large to file. Please use a smaller picture.');
+
   const r = await postTo({
     action:'uploadImage',
     folderId: driveFolderId(),
@@ -1129,7 +1188,7 @@ async function uploadPicture(att, ctx){
      every picture in the story. A 240px thumbnail is ~5-7 KB, so several fit,
      and the picture then shows INSTANTLY without asking Drive — which also means
      it still appears if the Drive folder's sharing is not set up yet. */
-  att.thumb  = await makeThumb(local);
+  att.thumb  = thumb;
   return r;
 }
 
@@ -1413,7 +1472,7 @@ function viewEditor(){
       '</div>' +
       '<div class="wordbar"><span class="' + (over?'over':'') + '" style="width:' + pct + '%"></span></div>' +
 
-      '<input type="file" id="fFile" accept="image/*" class="hide">' +
+      '<input type="file" id="fFile" accept="image/jpeg,image/png,image/webp,image/gif" class="hide">' +
       (pics ? '<div class="pics">' + pics + '</div>' : '') +
 
       '<div id="drawBox"></div>' +
@@ -1859,15 +1918,17 @@ const ACTIONS = {
     if(!SET.requireApproval && p.status !== 'published'){ p.status='published'; p.approvedAt = p.approvedAt || Date.now(); }
     bumpEpoch();          /* an in-flight pull must not roll this edit back */
     /* Pictures and text push in the background. The editor closes immediately
-       so the child sees their work right away. */
-    queuePictureUpload(p).catch(() => {});
+       so the child sees their work right away.
+       ORDER MATTERS: the picture upload must settle BEFORE the text push, or
+       the push carries the raw data URL — a ~300 KB string that overflows the
+       Sheet cell and takes the whole picture list with it. */
     VIEW.kidId = p.kidId; VIEW.name='kid'; DRAFT=null; render();
     toast('Saving…','ok');
-    pushToSheet().then(() => {
-      toast('Saved','ok');
-    }).catch(e => {
-      toast(e.message || 'Could not save to the Sheet', 'bad');
-    });
+    queuePictureUpload(p)
+      .catch(() => {})
+      .then(() => pushToSheet())
+      .then(() => { toast('Saved','ok'); })
+      .catch(e => { toast(e.message || 'Could not save to the Sheet', 'bad'); });
   },
   readPost(){
     if(!DRAFT) return;
@@ -2040,7 +2101,7 @@ async function queuePictureUpload(post){
   const pend = (post.attachments||[]).filter(a => !a.driveId && (a.src || a.thumb));
   if(!pend.length || !cloudReady()) return;
   const kid = kidById(post.kidId) || {};
-  let filed = 0;
+  let filed = 0, refused = 0;
   for(const att of pend){
     try{
       await uploadPicture(att, {
@@ -2048,8 +2109,11 @@ async function queuePictureUpload(post){
       });
       filed++;
     }catch(e){
+      /* One bad picture must not stop the others. Report it and keep going:
+         a photo the browser cannot open should not cost the child the rest of
+         their story's pictures. */
+      refused++;
       toast('A picture could not be filed: ' + e.message, 'bad');
-      break;
     }
   }
   /* The text went up BEFORE the pictures, so the Sheet's picture count was
@@ -2059,6 +2123,7 @@ async function queuePictureUpload(post){
     suppressPush = false;
     await pushToSheet().catch(() => {});
   }
+  return { filed, refused };
 }
 
 
@@ -2195,7 +2260,7 @@ if(typeof window !== 'undefined'){
     /* the login wall */
     viewLogin, isLocked: () => LOCKED, setLocked: v => { LOCKED = !!v; },
     getLoginErr: () => LOGIN_ERR, FAMILY_PW_HASHES,
-    testHooks: { queuePictureUpload, uploadPicture, shrinkImage }
+    testHooks: { queuePictureUpload, uploadPicture, shrinkImage, makeThumb, resizeTo, MAX_THUMB_CHARS, MAX_CELL_CHARS }
   };
 }
 </script>
