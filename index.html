@@ -338,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.9';
+const BUILD = 'v3.2.0';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -377,8 +377,17 @@ const STATUS = {
 const MAX_WORDS_DEFAULT = 400;
 const AUTOSAVE_MS = 800;
 const PUSH_DEBOUNCE_MS = 1600;
-const PIC_MAX_EDGE = 1400;        /* drawings/photos are shrunk to this */
+/* The picture that is FILED in Drive. 1400px at q0.82 is a good screen size
+   (~200 KB) — big enough to look sharp, small enough to send quickly. */
+const PIC_MAX_EDGE = 1400;
 const PIC_JPEG_Q = 0.82;
+/* A TINY copy of the picture that is kept IN THE SHEET CELL, so the list and
+   the reading page show the picture instantly — no Drive request, and it still
+   works even if the Drive folder's sharing is not quite right. It must be
+   small enough that several fit in one 50,000-character cell: 240px at q0.55
+   is ~5-7 KB of base64 each. The full picture stays in Drive. */
+const THUMB_MAX_EDGE = 240;
+const THUMB_JPEG_Q = 0.55;
 
 /* ---- how long a Sheet call may take -------------------------------------
    One attempt gets READ_TIMEOUT_MS. A healthy read answers in 3–6s; a cold
@@ -1038,51 +1047,70 @@ async function runDoctor(){
 /* ---- resolve a picture to something an <img> can load --------------------
    An attachment can be in one of three states, and all three must render:
      - just drawn/attached, not yet uploaded → `src` holds an inline data URL
-     - uploaded                              → `src` is blanked, `driveId` and
-                                               `url` hold the Drive reference
-     - read back from the Sheet              → same as uploaded, and `thumb`
-                                               may be absent
+     - uploaded                              → `src`/`thumb` are blanked, and
+                                               `driveId` + `url` hold the reference
+     - read back from the Sheet              → same as uploaded
 
    This must be ONE function. Three separate call sites each remembered a
    different subset of the fields, so a picture that survived one screen
-   vanished on another — the read view forgot `url` entirely, which is exactly
-   the state every uploaded picture is in. */
+   vanished on another.
+
+   THE ORDER MATTERS, and it was wrong. `att.url` is Drive's *page* link —
+   `https://drive.google.com/file/d/<id>/view` — which returns an HTML viewer,
+   NOT image bytes. An <img> pointed at it shows a broken image: "the picture
+   will not load". Only the `thumbnail?id=…` form serves actual pixels, so it
+   must be preferred whenever we hold a file id. `url` is the last resort, for
+   a reference that has no id at all. */
 function picUrl(att){
   if(!att) return '';
   if(att.thumb) return att.thumb;       /* local preview, fastest */
   if(att.src)   return att.src;         /* not uploaded yet */
-  if(att.url)   return att.url;         /* Drive's own link */
-  /* Last resort: build a thumbnail straight from the file id. This works for
-     a file the signed-in user can see, and needs no extra API call. */
+  /* Preferred: a real image endpoint built from the file id. This is what an
+     <img> can actually load, and needs no extra API call. */
   if(att.driveId) return 'https://drive.google.com/thumbnail?id=' + att.driveId + '&sz=w1000';
+  /* Last resort: the Drive page link. It is an HTML page, not an image, so it
+     renders only in some contexts — but with no file id it is all we have. */
+  if(att.url)   return att.url;
   return '';
 }
 function hasPic(att){ return !!picUrl(att); }
 
-function shrinkImage(dataUrl){
+/* Re-encode an image to a JPEG no larger than `maxEdge` on its longest side.
+   Used for BOTH sizes: the picture filed in Drive, and the tiny copy kept in
+   the Sheet. Never upscales; keeps the aspect ratio; flattens transparency
+   onto white so a drawing does not come out black. If anything goes wrong the
+   ORIGINAL is returned, so a picture is never lost to a resize failure. */
+function resizeTo(dataUrl, maxEdge, quality){
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => {
-      const scale = Math.min(1, PIC_MAX_EDGE / Math.max(img.width, img.height));
-      const w = Math.round(img.width  * scale);
-      const h = Math.round(img.height * scale);
-      const cv = document.createElement('canvas');
-      cv.width = w; cv.height = h;
-      const g = cv.getContext('2d');
-      g.fillStyle = '#fff'; g.fillRect(0,0,w,h);   /* drawings may have alpha */
-      g.drawImage(img, 0, 0, w, h);
-      resolve(cv.toDataURL('image/jpeg', PIC_JPEG_Q));
+      try{
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width  * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const g = cv.getContext('2d');
+        g.fillStyle = '#fff'; g.fillRect(0,0,w,h);   /* drawings may have alpha */
+        g.drawImage(img, 0, 0, w, h);
+        const out = cv.toDataURL('image/jpeg', quality);
+        /* If the canvas gave us nothing usable, keep the original. */
+        resolve(/^data:image\//.test(out) ? out : dataUrl);
+      }catch(e){ resolve(dataUrl); }
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
   });
 }
+function shrinkImage(dataUrl){ return resizeTo(dataUrl, PIC_MAX_EDGE, PIC_JPEG_Q); }
+function makeThumb(dataUrl){ return resizeTo(dataUrl, THUMB_MAX_EDGE, THUMB_JPEG_Q); }
 
 async function uploadPicture(att, ctx){
   if(!cloudReady())      throw new Error('No Sheet is set up, so pictures cannot be filed.');
   if(!driveFolderId())   throw new Error('No Drive folder is set. Paste a folder link in Settings.');
 
-  const small = await shrinkImage(att.src);
+  const local = att.src || att.thumb;      /* the best copy we hold right now */
+  const small = await shrinkImage(local);
   const r = await postTo({
     action:'uploadImage',
     folderId: driveFolderId(),
@@ -1096,14 +1124,12 @@ async function uploadPicture(att, ctx){
   att.src    = '';            /* the picture now lives in Drive */
   att.driveId= r.fileId;
   att.url    = r.url;
-  /* DROP the local preview, do not keep it. `thumb` is a full-size `data:`
-     URL — a single picture is ~200 KB, and a story can hold several. Pushing
-     that to the Sheet overflowed the 50,000-character cell, so the backend
-     dropped the WHOLE attachment list and every picture vanished on the next
-     sign-in. The picture is in Drive now; picUrl() draws it from `url`/`driveId`,
-     which is exactly the "read back from the Sheet" state. Keeping the data URL
-     here only risks the same overflow again. */
-  att.thumb  = '';
+  /* Keep a TINY copy in the Sheet, not the full one. The old code kept the
+     whole ~200 KB data URL, which overflowed the 50,000-character cell and lost
+     every picture in the story. A 240px thumbnail is ~5-7 KB, so several fit,
+     and the picture then shows INSTANTLY without asking Drive — which also means
+     it still appears if the Drive folder's sharing is not set up yet. */
+  att.thumb  = await makeThumb(local);
   return r;
 }
 
