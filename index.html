@@ -338,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.8';
+const BUILD = 'v3.1.9';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -1096,7 +1096,14 @@ async function uploadPicture(att, ctx){
   att.src    = '';            /* the picture now lives in Drive */
   att.driveId= r.fileId;
   att.url    = r.url;
-  if(att.thumb) att.thumb = att.thumb;   /* local preview kept for speed */
+  /* DROP the local preview, do not keep it. `thumb` is a full-size `data:`
+     URL — a single picture is ~200 KB, and a story can hold several. Pushing
+     that to the Sheet overflowed the 50,000-character cell, so the backend
+     dropped the WHOLE attachment list and every picture vanished on the next
+     sign-in. The picture is in Drive now; picUrl() draws it from `url`/`driveId`,
+     which is exactly the "read back from the Sheet" state. Keeping the data URL
+     here only risks the same overflow again. */
+  att.thumb  = '';
   return r;
 }
 
