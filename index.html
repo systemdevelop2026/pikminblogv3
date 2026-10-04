@@ -338,7 +338,7 @@ hr.sep{border:0;border-top:1.5px dashed var(--line);margin:19px 0}
    1. CONSTANTS
    ========================================================================== */
 
-const BUILD = 'v3.1.5';
+const BUILD = 'v3.1.7';
 
 /* NOTE: All localStorage keys are removed. The Google Sheet and Google Drive
    are the sole sources of truth. Nothing is stored on the device — not stories,
@@ -353,7 +353,7 @@ const BUILD = 'v3.1.5';
    itself — leave it private, or shared only with your own Google account. */
 const DEFAULT_BACKEND = {
   url:   'https://script.google.com/macros/s/AKfycbzws40cS8CzCOzHB82oWURV89GaGYWdhg2LTYCEk03fUJbAi78TlhgkorUVEUL9OxzoSQ/exec',
-  token: 'ngkaixuenngyeeching',
+  token: 'ngkaixuen_ngyeeching',
   folderId: '1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0',
   folderUrl: 'https://drive.google.com/drive/folders/1Ec8nu9gqoowAnnIoejzUj17K4YM0Qas0'
 };
@@ -787,7 +787,15 @@ async function readSheetWithRetry(attempts){
   throw last || new Error('The Sheet did not answer.');
 }
 
-/* ---- pull: read the Sheet and merge in ---------------------------------- */
+/* ---- pull: read the Sheet and replace in --------------------------------- */
+/* A generation counter, bumped by every LOCAL write (create/delete/rename).
+   A pull captures it before it starts and checks it again before it lands.
+   If the number moved, the device changed while the read was in flight — and
+   the child's work must not be thrown away by an answer to a question that was
+   asked before they pressed the button. See the note in pullFromSheet. */
+let localEpoch = 0;
+function bumpEpoch(){ localEpoch++; }
+
 async function pullFromSheet(opts){
   const force = !!(opts && opts.force);
   if(!cloudReady()) return { ok:false, skipped:'no Sheet set up' };
@@ -795,19 +803,65 @@ async function pullFromSheet(opts){
   if(!force && !cloudCfg().pullOnOpen) return { ok:true, skipped:'check-on-open is off' };
 
   const wasSuppressed = suppressPush;
+  const epochAtStart  = localEpoch;
   suppressPush = true;
   setCloudState('reading','Reading the Sheet…');
   armWatchdog();
   try{
     const r = await readSheetWithRetry(READ_ATTEMPTS);
     const remote = r.data || { kids:[], posts:[], deleted:[] };
-    /* The Sheet is the sole source of truth. Replace DB entirely — no merge,
-       no conflict resolution, no last-write-wins. The local copy is ephemeral. */
-    DB = {
-      kids:    Array.isArray(remote.kids)    ? remote.kids    : [],
-      posts:   Array.isArray(remote.posts)   ? remote.posts   : [],
-      deleted: Array.isArray(remote.deleted) ? remote.deleted : []
-    };
+
+    /* The Sheet is the sole source of truth: DB is REPLACED, not merged — no
+       conflict resolution, no last-write-wins, nothing kept "just in case".
+       That is the deliberate privacy design; the local copy is ephemeral.
+
+       THE ONE EXCEPTION. If the device changed while this read was in flight,
+       landing the answer would silently delete what was just created. That is
+       not "the Sheet wins" — it is a stale answer to a question asked before
+       the user acted. On a first load the read takes seconds, which is exactly
+       when a child taps New Pikmin, so this is reachable in practice.
+
+       So: if the epoch moved, the Sheet still wins on EVERYTHING it knows, and
+       only the entries this device created after the read began are re-applied
+       on top. Nothing the Sheet holds is lost, and nothing the child just made
+       is thrown away. The next push (already queued by the create) carries it
+       up for real. */
+    if(localEpoch !== epochAtStart){
+      const remoteKidIds = {};
+      (remote.kids || []).forEach(k => { remoteKidIds[k.id] = 1; });
+      const localOnlyKids = (DB.kids || []).filter(k => !remoteKidIds[k.id]);
+
+      const remotePostIds = {};
+      (remote.posts || []).forEach(p => { remotePostIds[p.id] = 1; });
+      const localOnlyPosts = (DB.posts || []).filter(p => !remotePostIds[p.id]);
+
+      /* Local deletions made during the read are honoured too: a tombstone the
+         device added must survive the landing, or a story the child just
+         deleted comes back from the Sheet. Union of both delete lists. */
+      const del = {};
+      (remote.deleted || []).forEach(id => { del[id] = 1; });
+      (DB.deleted    || []).forEach(id => { del[id] = 1; });
+
+      const keepK = (Array.isArray(remote.kids)  ? remote.kids  : []).concat(localOnlyKids);
+      const keepP = (Array.isArray(remote.posts) ? remote.posts : []).concat(localOnlyPosts);
+
+      /* A live id always beats a tombstone — never show something twice. The
+         reverse is NOT true: a tombstone must outlive the row it names, or the
+         very next push re-creates what the child deleted. So the Sheet's own
+         rows are filtered by the tombstones, and the tombstone list is kept
+         whole (minus ids that are genuinely alive on BOTH sides). */
+      DB = {
+        kids:    keepK.filter(k => !del[k.id]),
+        posts:   keepP.filter(p => !del[p.id]),
+        deleted: Object.keys(del)
+      };
+    } else {
+      DB = {
+        kids:    Array.isArray(remote.kids)    ? remote.kids    : [],
+        posts:   Array.isArray(remote.posts)   ? remote.posts   : [],
+        deleted: Array.isArray(remote.deleted) ? remote.deleted : []
+      };
+    }
     pulledOnce = true;
     const n = (DB.posts||[]).length;
     setCloudState('ok', n ? ('Up to date — ' + n + ' stor' + (n===1?'y':'ies') + '.')
@@ -941,6 +995,29 @@ async function runDoctor(){
       lines.push('  !! the Sheet is EMPTY while this device holds stories.');
   }catch(e){
     lines.push('  FAILED: ' + e.message);
+  }
+
+  /* Reading and WRITING are different abilities, and a deployment can have one
+     without the other. A deployment that answers `load` but refuses `sync` looks
+     perfectly healthy right up until a child presses Save and their story is
+     lost. Ask it directly: send the current snapshot straight back. This is
+     idempotent — it writes what is already stored — so it cannot corrupt
+     anything, and it is the only way to know before the child finds out. */
+  lines.push('');
+  lines.push('Testing a save (writes the same data back, nothing lost)…');
+  try{
+    const w = await postTo({
+      action:'sync',
+      data:{ kids:DB.kids, posts:DB.posts, deleted:DB.deleted }
+    }, 20000);
+    lines.push('  save answered OK' + (w && w.posts != null ? (' (' + w.posts + ' stories)') : ''));
+  }catch(e){
+    const m = String(e.message || e);
+    lines.push('  FAILED: ' + m);
+    if(/unknown action/i.test(m))
+      lines.push('  !! this deployment is OLDER than the app: it has no "sync".');
+    else if(/bad token/i.test(m))
+      lines.push('  !! the token does not match SECRET in the Apps Script.');
   }
   return lines.join('\n');
 }
@@ -1619,6 +1696,7 @@ const ACTIONS = {
     if(!nm){ toast('Please give a name','bad'); return; }
     const kid = { id:uid(), name:nm, pikmin:VIEW.newPik || 'red', createdAt:Date.now() };
     DB.kids.push(kid);
+    bumpEpoch();          /* an in-flight pull must not delete this */
     pushToSheet().catch(() => {});
     VIEW.name='profiles';
     render(); toast('Welcome, ' + nm + '!','ok');
@@ -1630,6 +1708,7 @@ const ACTIONS = {
     postsOf(kid.id).forEach(p => { DB.deleted.push(p.id); });
     DB.posts = DB.posts.filter(p => p.kidId !== kid.id);
     DB.kids  = DB.kids.filter(k => k.id !== kid.id);
+    bumpEpoch();          /* an in-flight pull must not resurrect this */
     pushToSheet().catch(() => {});
     VIEW.name='log'; render(); toast('Removed ' + kid.name);
   },
@@ -1644,6 +1723,7 @@ const ACTIONS = {
       createdAt:Date.now(), updatedAt:Date.now(), approvedAt: SET.requireApproval ? null : Date.now()
     };
     DB.posts.push(p);
+    bumpEpoch();          /* an in-flight pull must not delete this draft */
     openEditor(p.id);
   },
   fmt(d){
@@ -1711,6 +1791,7 @@ const ACTIONS = {
     });
     if(SET.requireApproval && p.status === 'published') p.status = 'pending';
     if(!SET.requireApproval && p.status !== 'published'){ p.status='published'; p.approvedAt = p.approvedAt || Date.now(); }
+    bumpEpoch();          /* an in-flight pull must not roll this edit back */
     /* Pictures and text push in the background. The editor closes immediately
        so the child sees their work right away. */
     queuePictureUpload(p).catch(() => {});
@@ -1728,6 +1809,7 @@ const ACTIONS = {
     const p = DB.posts.find(x => x.id === DRAFT.id);
     if(!p) return;
     Object.assign(p, { title:DRAFT.title, body:DRAFT.body, attachments:DRAFT.attachments, updatedAt:Date.now() });
+    bumpEpoch();          /* an in-flight pull must not roll this edit back */
     pushToSheet().catch(() => {});
     VIEW.fromKid = p.kidId; VIEW.name='read'; VIEW.postId=p.id; DRAFT=null; render();
   },
@@ -1737,6 +1819,7 @@ const ACTIONS = {
     if(!confirm('Delete this story? This cannot be undone.')) return;
     DB.posts = DB.posts.filter(p => p.id !== DRAFT.id);
     DB.deleted.push(DRAFT.id);
+    bumpEpoch();          /* an in-flight pull must not resurrect this */
     const kidId = DRAFT.kidId;
     DRAFT=null; VIEW.kidId=kidId; VIEW.name='kid'; render(); toast('Deleted');
     pushToSheet().catch(e => {
@@ -1748,6 +1831,7 @@ const ACTIONS = {
     if(!p) return;
     p.status = 'published';
     p.approvedAt = Date.now();
+    bumpEpoch();          /* an in-flight pull must not undo this approval */
     render(); toast('Approved — it has bloomed!','ok');
     pushToSheet().catch(e => {
       toast(e.message || 'Could not approve on the Sheet', 'bad');
@@ -2030,6 +2114,7 @@ if(typeof window !== 'undefined'){
     setView: v => { VIEW = v; }, getView: () => VIEW,
     getDraft: () => DRAFT, setDraft: d => { DRAFT = d; },
     setPulledOnce: v => { pulledOnce = v; }, getPulledOnce: () => pulledOnce,
+    bumpEpoch: () => { localEpoch++; }, getEpoch: () => localEpoch,
     hasPendingPush, cancelPush, isSuppressing: () => suppressPush,
     setSuppressed: v => { suppressPush = v; },
     setCloudState: (s,m) => setCloudState(s,m), getCloudState: () => CLOUD_STATE,
